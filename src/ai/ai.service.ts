@@ -13,7 +13,6 @@ export class AiService {
     const genAI = new GoogleGenAI({ apiKey });
     this.model = genAI.models;
 
-    // URL de tu backend donde están los endpoints reales
     this.backendUrl =
       process.env.BACKEND_URL || 'https://desafio-laburen-vgux.onrender.com';
   }
@@ -21,56 +20,77 @@ export class AiService {
   async processMessage(message: string) {
     const lower = message.toLowerCase();
 
-    // Detectar intención simple
-    if (
-      lower.includes('producto') ||
-      lower.includes('ver') ||
-      lower.includes('buscar')
-    ) {
-      // Buscar productos
-      const queryMatch = message.match(/buscar (.*)/i);
-      const query = queryMatch ? queryMatch[1] : '';
-      try {
+    try {
+      // ----------- Pregunta: cuántos productos hay -----------
+      if (
+        lower.includes('cuántos productos') ||
+        lower.includes('total de productos')
+      ) {
+        const { data } = await axios.get(`${this.backendUrl}/products`);
+        return `Actualmente tenemos ${data.length} productos en nuestro inventario.`;
+      }
+
+      // ----------- Pregunta: ver listado de productos -----------
+      if (
+        lower.includes('producto') ||
+        lower.includes('ver') ||
+        lower.includes('listar')
+      ) {
+        const queryMatch = message.match(/buscar (.*)/i);
+        const query = queryMatch ? queryMatch[1] : '';
         const { data } = await axios.get(
           `${this.backendUrl}/products?q=${encodeURIComponent(query)}`,
         );
+        if (!data.length)
+          return 'No encontré productos que coincidan con tu búsqueda.';
+        // Mostrar ID, tipo de prenda, talla, color y disponibilidad
         const list = data
           .slice(0, 10)
-          .map((p: any) => `*${p.tipoPrenda} ${p.talla} - ${p.color}*`)
+          .map(
+            (p: any) =>
+              `ID: ${p.id} | ${p.tipoPrenda} ${p.talla} - ${p.color} | ${
+                p.disponible.toLowerCase() === 'si'
+                  ? '✅ Disponible'
+                  : '❌ No disponible'
+              } | Precio100U: $${p.precio100U}`,
+          )
           .join('\n');
-        return `¡Aquí tienes algunos productos que encontré!\n\n${list}`;
-      } catch (error) {
-        console.error(error);
-        return 'Hubo un error consultando los productos.';
+        return `Aquí tienes algunos productos:\n\n${list}`;
       }
-    }
 
-    if (lower.includes('detalle') || lower.includes('id')) {
-      // Obtener detalle de producto por ID
-      const idMatch = message.match(/id (\d+)/i);
-      if (!idMatch) return 'Por favor, indícame el ID del producto.';
-      const id = idMatch[1];
-      try {
+      // ----------- Pregunta: detalle de producto -----------
+      if (lower.includes('detalle') || lower.includes('id')) {
+        const idMatch = message.match(/id (\d+)/i);
+        if (!idMatch)
+          return 'Por favor, indícame el ID del producto que quieres ver.';
+        const id = idMatch[1];
         const { data } = await axios.get(`${this.backendUrl}/products/${id}`);
-        return `Detalle del producto:\nTipo: ${data.tipoPrenda}\nTalla: ${data.talla}\nColor: ${data.color}\nStock: ${data.cantidadDisponible}\nPrecio50U: ${data.precio50U}\nDescripción: ${data.descripcion}`;
-      } catch (error) {
-        console.error(error);
-        return 'No pude encontrar ese producto.';
+        return `Detalle del producto:\n
+ID: ${data.id}
+Tipo: ${data.tipoPrenda}
+Talla: ${data.talla}
+Color: ${data.color}
+Stock: ${data.cantidadDisponible}
+Disponible: ${data.disponible}
+Precio50U: $${data.precio50U}
+Precio100U: $${data.precio100U}
+Precio200U: $${data.precio200U}
+Categoría: ${data.categoria}
+Descripción: ${data.descripcion}`;
       }
-    }
 
-    if (lower.includes('comprar') || lower.includes('carrito')) {
-      return '¡Perfecto! Para comprar, por favor indica los productos y cantidades.';
-    }
+      // ----------- Comprar o carrito -----------
+      if (lower.includes('comprar') || lower.includes('carrito')) {
+        return '¡Perfecto! Para comprar, por favor indícame los productos y cantidades.';
+      }
 
-    // Si no es algo que pueda manejar automáticamente, usamos Gemini AI
-    const prompt = `
-Eres un asistente de ventas. Responde de forma clara y amigable. 
-Si el usuario quiere ver productos o detalles, indica que debe usar los endpoints /products.
+      // ----------- Pregunta genérica / Gemini AI -----------
+      const prompt = `
+Eres un asistente de ventas amigable y conciso. 
+Responde preguntas sobre productos usando los datos que tienes.
 Mensaje del cliente: ${message}
 `;
 
-    try {
       const response = await this.model.generateContent({
         model: 'gemini-2.5-flash',
         contents: prompt,
@@ -82,7 +102,7 @@ Mensaje del cliente: ${message}
         'No pude generar una respuesta.'
       );
     } catch (error) {
-      console.error('Gemini Error:', error);
+      console.error(error);
       return 'Hubo un error procesando tu solicitud.';
     }
   }
