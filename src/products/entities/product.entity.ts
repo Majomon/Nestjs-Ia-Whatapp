@@ -1,5 +1,5 @@
-// src/products/product.entity.ts
-import { Entity, PrimaryGeneratedColumn, Column } from 'typeorm';
+// src/products/entities/product.entity.ts
+import { Entity, Column, PrimaryGeneratedColumn } from 'typeorm';
 
 @Entity()
 export class Product {
@@ -7,14 +7,32 @@ export class Product {
   id: number;
 
   @Column()
-  name: string;
+  tipoPrenda: string;
 
-  @Column({ type: 'text', nullable: true })
-  description: string;
+  @Column()
+  talla: string;
 
-  @Column({ type: 'float' })
-  price: number;
+  @Column()
+  color: string;
 
-  @Column({ type: 'int' })
-  stock: number;
+  @Column('int')
+  cantidadDisponible: number;
+
+  @Column('float')
+  precio50U: number;
+
+  @Column('float')
+  precio100U: number;
+
+  @Column('float')
+  precio200U: number;
+
+  @Column()
+  disponible: string;
+
+  @Column()
+  categoria: string;
+
+  @Column()
+  descripcion: string;
 }

@@ -20,10 +20,13 @@ export class WhatsappService {
 
     const aiReply = await this.ai.processMessage(message);
 
+    // Tomamos solo el texto para Twilio
+    const replyText = aiReply.text ?? 'Lo siento, no pude procesar tu mensaje.';
+
     await this.client.messages.create({
       from: process.env.TWILIO_WHATSAPP_NUMBER,
       to: from,
-      body: aiReply,
+      body: replyText,
     });
 
     return 'OK';

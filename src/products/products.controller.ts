@@ -15,4 +15,10 @@ export class ProductsController {
   findOne(@Param('id') id: number) {
     return this.service.findOne(id);
   }
+
+  // 🔹 Endpoint para poblar productos
+  @Get('seed/run')
+  seed() {
+    return this.service.seedFromExcel('products.xlsx');
+  }
 }

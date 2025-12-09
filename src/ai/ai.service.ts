@@ -1,27 +1,44 @@
 // src/ai/ai.service.ts
 import { Injectable } from '@nestjs/common';
 import { GoogleGenAI } from '@google/genai';
+import axios from 'axios';
 
 @Injectable()
 export class AiService {
   private model: any;
+  private backendUrl = 'https://desafio-laburen-vgux.onrender.com';
 
   constructor() {
     const apiKey = process.env.GEMINI_API_KEY;
     const genAI = new GoogleGenAI({ apiKey });
-
     this.model = genAI.models;
+  }
+
+  private async callBackend(
+    method: 'get' | 'post' | 'patch',
+    path: string,
+    data?: any,
+  ) {
+    const url = `${this.backendUrl}${path}`;
+    try {
+      const res = await axios({ method, url, data });
+      return res.data;
+    } catch (err: any) {
+      console.error('Backend Error:', err.response?.data || err.message);
+      return { error: err.response?.data || err.message };
+    }
   }
 
   async processMessage(message: string) {
     const prompt = `
-Eres un agente de ventas. Debes responder como un asistente que puede ejecutar llamadas HTTP.
-Si el usuario pregunta por productos, llama: GET /products?q=loquequiera
-Si quiere un detalle, llama: GET /products/:id
-Si quiere comprar, llama: POST /carts con el body adecuado.
-Si quiere modificar un carrito: PATCH /carts/:id
+Eres un agente de ventas conectado a un backend real:
+- GET /products?q=loquequiera para listar productos
+- GET /products/:id para detalle
+- POST /carts para crear carrito
+- PATCH /carts/:id para actualizar carrito
 
-Responde SIEMPRE con texto claro y solo si es necesario propone una acción.
+Debes ejecutar llamadas HTTP reales según lo que pida el cliente.
+Responde SIEMPRE con texto claro y amigable.
 
 Mensaje del cliente: ${message}
 `;
@@ -32,15 +49,30 @@ Mensaje del cliente: ${message}
         contents: prompt,
       });
 
-      // La SDK nueva devuelve el texto así:
-      return (
+      const text =
         response.text ??
         response.candidates?.[0]?.content?.parts?.[0]?.text ??
-        'No pude generar una respuesta.'
-      );
+        '';
+
+      // Detecta si la IA sugiere un endpoint
+      const match = text.match(/(GET|POST|PATCH) (\/[^\s]+)(?: with (.*))?/i);
+      if (match) {
+        const method = match[1].toLowerCase() as 'get' | 'post' | 'patch';
+        const path = match[2];
+        let body;
+        if (match[3]) {
+          try {
+            body = JSON.parse(match[3]);
+          } catch {}
+        }
+        const result = await this.callBackend(method, path, body);
+        return { text, result };
+      }
+
+      return { text };
     } catch (error) {
       console.error('Gemini Error:', error);
-      return 'Hubo un error procesando tu solicitud.';
+      return { text: 'Hubo un error procesando tu solicitud.' };
     }
   }
 }
