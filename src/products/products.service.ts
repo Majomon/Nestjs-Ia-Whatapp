@@ -32,17 +32,13 @@ export class ProductsService {
   // En ProductsService
   async findAll(q?: string, page = 1, limit = 10) {
     const skip = (page - 1) * limit;
-
-    // Obtenemos el total de productos que coinciden
-    const [data, total] = await this.productRepository.findAndCount({
+    return this.productRepository.find({
       where: q
         ? [{ tipoPrenda: Like(`%${q}%`) }, { descripcion: Like(`%${q}%`) }]
         : {},
       skip,
       take: limit,
     });
-
-    return { products: data, total }; // <-- devolver total junto con los productos
   }
 
   // -----------------------
