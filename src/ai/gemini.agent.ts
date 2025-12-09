@@ -86,8 +86,10 @@ export class GeminiAgent {
             `${this.backendUrl}/products?q=${query}&limit=${limit}&offset=${offset}`,
           );
 
-          // data ya viene como { products: Product[], total: number }
-          result = data;
+          result = {
+            products: data.products || data,
+            total: data.total || data.products?.length || data.length,
+          };
         }
 
         if (funcCall.name === 'getProductDetail') {
