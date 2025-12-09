@@ -20,11 +20,11 @@ import { AiModule } from './ai/ai.module';
     TypeOrmModule.forRoot({
       type: 'postgres',
       url: process.env.DATABASE_URL,
-      entities: [Product, Cart, CartItem],
-      synchronize: true,
       ssl: {
         rejectUnauthorized: false,
       },
+      autoLoadEntities: true,
+      synchronize: true,
     }),
 
     ProductsModule,
