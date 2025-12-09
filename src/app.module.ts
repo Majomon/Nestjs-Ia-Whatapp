@@ -19,7 +19,7 @@ import { AiModule } from './ai/ai.module';
 
     TypeOrmModule.forRoot({
       type: 'postgres',
-      url: process.env.POSTGRES_URL,
+      url: process.env.DATABASE_URL,
       ssl:
         process.env.NODE_ENV === 'production'
           ? { rejectUnauthorized: false }
