@@ -1,37 +1,50 @@
+// src/ai/ai.service.ts
 import { Injectable } from '@nestjs/common';
-import { GeminiAgent } from './gemini.agent';
+import { GeminiAgent, ChatMessage } from './gemini.agent';
 
-// Define una interfaz simple para el historial
-interface ChatMessage {
-  role: 'user' | 'model';
-  text: string;
+interface UserState {
+  query?: string;
+  page: number;
+  limit: number;
 }
 
 @Injectable()
 export class AiService {
   private agent: GeminiAgent;
-  // Cambia el tipo del historial para usar la interfaz
-  private history: ChatMessage[] = [];
+  private userHistories: Record<string, ChatMessage[]> = {};
+  private userStates: Record<string, UserState> = {};
 
   constructor() {
     this.agent = new GeminiAgent(process.env.GEMINI_API_KEY!);
   }
 
-  async processMessage(message: string) {
-    // 1. Agregar mensaje del usuario al historial
-    this.history.push({ role: 'user', text: message });
+  async processMessage(userId: string, message: string) {
+    // Inicializar historial y estado si no existe
+    if (!this.userHistories[userId]) this.userHistories[userId] = [];
+    if (!this.userStates[userId])
+      this.userStates[userId] = { page: 1, limit: 5 };
 
-    // 2. Llamar al agente
-    const reply = await this.agent.sendMessage(this.history, message);
+    const history = this.userHistories[userId];
+    const state = this.userStates[userId];
 
-    // SOLUCIÓN AL ERROR:
-    // Aseguramos que 'finalReply' sea un string válido.
-    // Si 'reply' viene undefined, usamos el texto de la derecha.
-    const finalReply = reply ?? 'Lo siento, hubo un error técnico.';
+    // Manejar "siguiente" para paginación
+    const lowerMsg = message.trim().toLowerCase();
+    if (lowerMsg === 'sí' || lowerMsg === 'siguiente') {
+      state.page += 1;
+    } else {
+      state.page = 1;
+      state.query = message;
+    }
 
-    // 3. Guardar la respuesta del modelo en el historial
-    this.history.push({ role: 'model', text: finalReply });
+    // Guardar mensaje del usuario
+    history.push({ role: 'user', text: message });
 
-    return finalReply;
+    // Llamar al agente IA
+    const reply = await this.agent.sendMessage(history, message);
+
+    // Guardar respuesta del modelo
+    history.push({ role: 'model', text: reply });
+
+    return reply;
   }
 }

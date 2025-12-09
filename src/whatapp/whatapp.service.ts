@@ -18,7 +18,7 @@ export class WhatsappService {
     const message = body.Body;
     const from = body.From;
 
-    const aiReply = await this.ai.processMessage(message);
+    const aiReply = await this.ai.processMessage(from, message);
 
     // Solo enviar texto
     const replyText =

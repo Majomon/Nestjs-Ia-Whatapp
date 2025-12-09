@@ -1,19 +1,18 @@
-import {
-  GoogleGenAI,
-  FunctionDeclaration,
-  Tool,
-  Type,
-  Content,
-  Part,
-} from '@google/genai';
+// src/ai/gemini.agent.ts
+import { GoogleGenAI, Tool, Type, Content, Part } from '@google/genai';
 import axios from 'axios';
+
+export interface ChatMessage {
+  role: 'user' | 'model';
+  text: string;
+}
 
 const tools: Tool[] = [
   {
     functionDeclarations: [
       {
         name: 'getProducts',
-        description: 'Busca productos con query, límite y offset.',
+        description: 'Busca productos según query, límite y offset.',
         parameters: {
           type: Type.OBJECT,
           properties: {
@@ -50,50 +49,52 @@ export class GeminiAgent {
     this.ai = new GoogleGenAI({ apiKey });
   }
 
-  async sendMessage(
-    history: { role: 'user' | 'model'; text: string }[],
+  // Método principal para enviar mensaje al agente
+  public async sendMessage(
+    history: ChatMessage[],
     userMessage: string,
-  ) {
-    // Mapea el historial correctamente respetando los roles
+  ): Promise<string> {
     const historyContent: Content[] = history.map((h) => ({
-      role: h.role, // 'user' o 'model'
+      role: h.role,
       parts: [{ text: h.text }],
     }));
-
-    const pastHistory = historyContent.slice(0, -1); // Todo menos el último
 
     const chat = this.ai.chats.create({
       model: this.modelName,
       config: {
         systemInstruction:
-          'Eres un asistente de ventas. Usa herramientas para pedir info de productos.',
-        tools: tools,
+          'Eres un asistente de ventas. Usa herramientas para pedir info de productos. Saluda, pregunta qué productos le interesa al usuario, muestra precios y detalles amablemente.',
+        tools,
       },
-      history: pastHistory,
+      history: historyContent,
     });
 
+    // Enviamos el mensaje del usuario
     let response = await chat.sendMessage({ message: userMessage });
 
-    // Detectar si el modelo quiere llamar a una función
-    if (response.candidates?.[0]?.content?.parts?.[0]?.functionCall) {
-      const funcCall = response.candidates[0].content.parts[0].functionCall!;
+    // Si el modelo quiere usar una función (getProducts / getProductDetail)
+    const funcCall = response.candidates?.[0]?.content?.[0]?.functionCall;
+    if (funcCall) {
       let result;
-
-      if (funcCall.name === 'getProducts') {
-        const { query = '', limit = 10, offset = 0 } = funcCall.args as any;
-        const { data } = await axios.get(
-          `${this.backendUrl}/products?q=${query}&limit=${limit}&offset=${offset}`,
-        );
-        result = { products: data };
+      try {
+        if (funcCall.name === 'getProducts') {
+          const { query = '', limit = 5, offset = 0 } = funcCall.args as any;
+          const { data } = await axios.get(
+            `${this.backendUrl}/products?q=${query}&limit=${limit}&offset=${offset}`,
+          );
+          result = data;
+        }
+        if (funcCall.name === 'getProductDetail') {
+          const { id } = funcCall.args as any;
+          const { data } = await axios.get(`${this.backendUrl}/products/${id}`);
+          result = { product: data };
+        }
+      } catch (err) {
+        console.error('Error llamando al backend:', err);
+        result = { error: 'No se pudo obtener la información.' };
       }
 
-      if (funcCall.name === 'getProductDetail') {
-        const { id } = funcCall.args as any;
-        const { data } = await axios.get(`${this.backendUrl}/products/${id}`);
-        result = { product: data };
-      }
-
-      // Enviar el resultado de vuelta al modelo para generar respuesta
+      // Mandamos la respuesta de la función de vuelta al modelo
       response = await chat.sendMessage({
         message: [
           {
@@ -106,6 +107,6 @@ export class GeminiAgent {
       });
     }
 
-    return response.text;
+    return response.text ?? 'Lo siento, no pude generar una respuesta.';
   }
 }
