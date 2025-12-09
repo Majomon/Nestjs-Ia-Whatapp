@@ -29,10 +29,15 @@ export class ProductsService {
   // -----------------------
   // Buscar todos los productos
   // -----------------------
-  async findAll(q?: string) {
-    if (!q) return this.productRepository.find();
+  // En ProductsService
+  async findAll(q?: string, page = 1, limit = 10) {
+    const skip = (page - 1) * limit;
     return this.productRepository.find({
-      where: [{ tipoPrenda: Like(`%${q}%`) }, { descripcion: Like(`%${q}%`) }],
+      where: q
+        ? [{ tipoPrenda: Like(`%${q}%`) }, { descripcion: Like(`%${q}%`) }]
+        : {},
+      skip,
+      take: limit,
     });
   }
 
