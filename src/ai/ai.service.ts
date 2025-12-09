@@ -28,7 +28,7 @@ Mensaje del cliente: ${message}
 
     try {
       const response = await this.model.generateContent({
-        model: 'gemini-2.0-flash',
+        model: 'gemini-2.5-flash',
         contents: prompt,
       });
 
