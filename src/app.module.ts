@@ -1,15 +1,12 @@
 // src/app.module.ts
 import { Module } from '@nestjs/common';
-import { TypeOrmModule } from '@nestjs/typeorm';
 import { ConfigModule } from '@nestjs/config';
+import { TypeOrmModule } from '@nestjs/typeorm';
 
-import { ProductsModule } from './products/products.module';
-import { CartsModule } from './carts/carts.module';
-import { CartItem } from './carts/entities/cart-item.entity';
-import { Cart } from './carts/entities/cart.entity';
-import { Product } from './products/entities/product.entity';
-import { WhatsappModule } from './whatapp/whatapp.module';
 import { AiModule } from './ai/ai.module';
+import { CartsModule } from './carts/carts.module';
+import { ProductsModule } from './products/products.module';
+import { WhatsappModule } from './whatapp/whatapp.module';
 
 @Module({
   imports: [
