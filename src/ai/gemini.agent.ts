@@ -80,11 +80,14 @@ export class GeminiAgent {
       try {
         if (funcCall.name === 'getProducts') {
           const { query = '', limit = 10, offset = 0 } = funcCall.args as any;
+
+          // Llamamos al backend con limit y offset
           const { data } = await axios.get(
             `${this.backendUrl}/products?q=${query}&limit=${limit}&offset=${offset}`,
           );
-          // CORRECCIÓN CRÍTICA: Envolvemos el array en un objeto
-          result = { products: data };
+
+          // data ya viene como { products: Product[], total: number }
+          result = data;
         }
 
         if (funcCall.name === 'getProductDetail') {

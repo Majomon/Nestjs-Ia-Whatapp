@@ -1,11 +1,18 @@
-// src/whatsapp/whatsapp.service.ts
 import { Injectable } from '@nestjs/common';
 import { AiService } from '../ai/ai.service';
 import { Twilio } from 'twilio';
 
+interface UserState {
+  query?: string;
+  page: number;
+  limit: number;
+  total?: number;
+}
+
 @Injectable()
 export class WhatsappService {
   private client: Twilio;
+  private userStates: Record<string, UserState> = {}; // record por número
 
   constructor(private ai: AiService) {
     this.client = new Twilio(
@@ -14,56 +21,65 @@ export class WhatsappService {
     );
   }
 
-  // Función para dividir un array en chunks
-  private chunkArray<T>(arr: T[], chunkSize: number): T[][] {
-    const chunks: T[][] = [];
-    for (let i = 0; i < arr.length; i += chunkSize) {
-      chunks.push(arr.slice(i, i + chunkSize));
+  private formatProducts(products: any[]): string {
+    return products
+      .map((p, i) => `${i + 1}) ${p.tipoPrenda} – $${p.precio50U} – ID ${p.id}`)
+      .join('\n');
+  }
+
+  private chunkMessage(text: string, chunkSize = 1600): string[] {
+    const chunks: string[] = [];
+    let start = 0;
+    while (start < text.length) {
+      chunks.push(text.slice(start, start + chunkSize));
+      start += chunkSize;
     }
     return chunks;
   }
 
-  // Función para formatear productos como texto
-  private formatProducts(products: any[]): string {
-    return products
-      .map(
-        (p) =>
-          `ID: ${p.id}\nNombre: ${p.tipoPrenda}\nPrecio 50U: $${p.precio50U}\n---`,
-      )
-      .join('\n');
-  }
-
   async handleMessage(body: any) {
-    const message = body.Body;
     const from = body.From;
+    const message = body.Body?.trim().toLowerCase() || '';
+    const state = this.userStates[from] || { page: 1, limit: 10 };
 
-    const aiReply = await this.ai.processMessage(message);
-
-    // Forzamos el tipo a un objeto con products
-    type AiResponse = { products?: any[] } | string;
-    const reply = aiReply as AiResponse;
-
-    if (typeof reply === 'object' && reply.products) {
-      const products: any[] = reply.products; // ✅ ahora TypeScript reconoce 'products'
-      const chunks = this.chunkArray(products, 10);
-
-      for (const chunk of chunks) {
-        const text = this.formatProducts(chunk);
-        await this.client.messages.create({
-          from: process.env.TWILIO_WHATSAPP_NUMBER,
-          to: from,
-          body: text,
-        });
-      }
+    // Si dice "sí" o "siguiente", incrementamos la página
+    if (message === 'sí' || message === 'siguiente') {
+      state.page += 1;
     } else {
-      // Si la respuesta es un string simple
-      const replyText =
-        typeof reply === 'string' ? reply : JSON.stringify(reply);
+      // Nuevo query
+      state.page = 1;
+      state.query = message;
+    }
 
+    this.userStates[from] = state;
+
+    // Llamamos a AI para obtener productos
+    const aiReply: any = await this.ai.processMessage(state.query || message);
+
+    // Extraemos products y total
+    const products = aiReply.products || [];
+    const total = aiReply.total || products.length;
+
+    state.total = total;
+
+    const start = (state.page - 1) * state.limit + 1;
+    const end = start + products.length - 1;
+
+    let text = `Mostrando productos ${start} a ${end} de ${total}:\n\n`;
+    text += this.formatProducts(products);
+
+    if (end < total) {
+      text += `\n\n¿Querés ver los siguientes ${state.limit}?`;
+    }
+
+    // Twilio limita a 1600 caracteres
+    const chunks = this.chunkMessage(text);
+
+    for (const chunk of chunks) {
       await this.client.messages.create({
         from: process.env.TWILIO_WHATSAPP_NUMBER,
         to: from,
-        body: replyText,
+        body: chunk,
       });
     }
 
