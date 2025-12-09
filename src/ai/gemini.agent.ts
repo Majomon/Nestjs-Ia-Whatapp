@@ -41,12 +41,11 @@ export class GeminiAgent {
       model: 'gemini-2.5-flash',
       config: {
         systemInstruction: `
-          Eres un agente de ventas de productos.
-          - Siempre respondes al usuario.
-          - Inicia la conversación mostrando 2-3 productos reales de la base de datos.
-          - Cuando el usuario indique interés, filtra productos usando getProducts y devuelve solo los que coinciden.
-          - Maneja paginación automáticamente si el usuario quiere "más".
-          - Presenta nombre, talla, precio de forma resumida.
+          Eres un agente de ventas inteligente.
+          - Inicia la conversación saludando y mostrando 2-3 productos reales de la base de datos.
+          - Cuando el usuario diga qué le interesa, llama a getProducts y filtra por interés.
+          - Si el usuario pide "más", entiende que quiere paginación.
+          - Presenta los productos de forma resumida (nombre, talla, precio).
         `,
         tools,
       },
@@ -56,8 +55,10 @@ export class GeminiAgent {
       })),
     });
 
+    // Enviamos el mensaje del usuario al modelo
     let response = await chat.sendMessage({ message: userMessage });
 
+    // Si el modelo decide usar una función
     const funcCall = response.candidates?.[0]?.content?.[0]?.functionCall;
     if (funcCall?.name === 'getProducts') {
       const { query = '', limit = 3, offset = 0 } = funcCall.args as any;
@@ -65,7 +66,7 @@ export class GeminiAgent {
         `${this.backendUrl}/products?q=${encodeURIComponent(query)}&limit=${limit}&offset=${offset}`,
       );
 
-      // Mandamos la respuesta de la función de vuelta al modelo para que genere un mensaje natural
+      // Mandamos la respuesta de la función de vuelta al modelo
       response = await chat.sendMessage({
         message: [
           { functionResponse: { name: funcCall.name, response: data } },

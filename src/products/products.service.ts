@@ -2,7 +2,7 @@
 import * as XLSX from 'xlsx';
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Like, Repository } from 'typeorm';
+import { ILike, Like, Repository } from 'typeorm';
 import { Product } from './entities/product.entity';
 
 interface ProductRow {
@@ -31,12 +31,14 @@ export class ProductsService {
   // -----------------------
   // En ProductsService
   // GET /products?q=&limit=&offset=
-  async findAll(q?: string, page = 1, limit = 10) {
+
+  async findAll(q?: string, page = 1, limit = 20) {
     const skip = (page - 1) * limit;
+    const where = q
+      ? [{ tipoPrenda: ILike(`%${q}%`) }, { descripcion: ILike(`%${q}%`) }]
+      : {};
     const [data, total] = await this.productRepository.findAndCount({
-      where: q
-        ? [{ tipoPrenda: Like(`%${q}%`) }, { descripcion: Like(`%${q}%`) }]
-        : {},
+      where,
       skip,
       take: limit,
     });
