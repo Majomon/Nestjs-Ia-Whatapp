@@ -1,7 +1,7 @@
 // src/ai/ai.service.ts
 import { Injectable } from '@nestjs/common';
-import { GoogleGenAI } from '@google/genai';
 import axios from 'axios';
+import { GoogleGenAI } from '@google/genai';
 
 @Injectable()
 export class AiService {
@@ -10,58 +10,63 @@ export class AiService {
 
   constructor() {
     const apiKey = process.env.GEMINI_API_KEY;
-    this.backendUrl =
-      process.env.BACKEND_URL || 'https://desafio-laburen-vgux.onrender.com';
     const genAI = new GoogleGenAI({ apiKey });
     this.model = genAI.models;
-  }
 
-  private async fetchProducts(query: string) {
-    try {
-      const { data } = await axios.get(
-        `${this.backendUrl}/products?q=${encodeURIComponent(query)}`,
-      );
-      return data;
-    } catch (err) {
-      console.error('Error fetching products:', err);
-      return [];
-    }
+    // URL de tu backend donde están los endpoints reales
+    this.backendUrl =
+      process.env.BACKEND_URL || 'https://desafio-laburen-vgux.onrender.com';
   }
 
   async processMessage(message: string) {
-    // 1️⃣ Detectar si el usuario pregunta por productos (simple keyword)
-    const lowerMsg = message.toLowerCase();
+    const lower = message.toLowerCase();
+
+    // Detectar intención simple
     if (
-      lowerMsg.includes('productos') ||
-      lowerMsg.includes('ver') ||
-      lowerMsg.includes('quiero')
+      lower.includes('producto') ||
+      lower.includes('ver') ||
+      lower.includes('buscar')
     ) {
-      const products = await this.fetchProducts(message);
-
-      if (products.length === 0) {
-        return {
-          text: 'Lo siento, no encontré productos que coincidan con tu búsqueda.',
-        };
-      }
-
-      // 2️⃣ Formatear listado
-      const text =
-        '¡Claro! Aquí tienes algunos productos:\n\n' +
-        products
-          .slice(0, 10) // mostrar máximo 10
-          .map(
-            (p: any) =>
-              `*${p.tipoPrenda}* - ${p.descripcion} - 💰 ${p.precio50U} ARS`,
-          )
+      // Buscar productos
+      const queryMatch = message.match(/buscar (.*)/i);
+      const query = queryMatch ? queryMatch[1] : '';
+      try {
+        const { data } = await axios.get(
+          `${this.backendUrl}/products?q=${encodeURIComponent(query)}`,
+        );
+        const list = data
+          .slice(0, 10)
+          .map((p: any) => `*${p.tipoPrenda} ${p.talla} - ${p.color}*`)
           .join('\n');
-
-      return { text };
+        return `¡Aquí tienes algunos productos que encontré!\n\n${list}`;
+      } catch (error) {
+        console.error(error);
+        return 'Hubo un error consultando los productos.';
+      }
     }
 
-    // 3️⃣ Si no es consulta de productos, pasar al AI normal
-    const prompt = `
-Eres un asistente de ventas. Responde de manera clara y amable. No inventes productos, solo muestra reales si hay consulta.
+    if (lower.includes('detalle') || lower.includes('id')) {
+      // Obtener detalle de producto por ID
+      const idMatch = message.match(/id (\d+)/i);
+      if (!idMatch) return 'Por favor, indícame el ID del producto.';
+      const id = idMatch[1];
+      try {
+        const { data } = await axios.get(`${this.backendUrl}/products/${id}`);
+        return `Detalle del producto:\nTipo: ${data.tipoPrenda}\nTalla: ${data.talla}\nColor: ${data.color}\nStock: ${data.cantidadDisponible}\nPrecio50U: ${data.precio50U}\nDescripción: ${data.descripcion}`;
+      } catch (error) {
+        console.error(error);
+        return 'No pude encontrar ese producto.';
+      }
+    }
 
+    if (lower.includes('comprar') || lower.includes('carrito')) {
+      return '¡Perfecto! Para comprar, por favor indica los productos y cantidades.';
+    }
+
+    // Si no es algo que pueda manejar automáticamente, usamos Gemini AI
+    const prompt = `
+Eres un asistente de ventas. Responde de forma clara y amigable. 
+Si el usuario quiere ver productos o detalles, indica que debe usar los endpoints /products.
 Mensaje del cliente: ${message}
 `;
 
@@ -71,15 +76,14 @@ Mensaje del cliente: ${message}
         contents: prompt,
       });
 
-      return {
-        text:
-          response.text ??
-          response.candidates?.[0]?.content?.parts?.[0]?.text ??
-          'No pude generar una respuesta.',
-      };
+      return (
+        response.text ??
+        response.candidates?.[0]?.content?.parts?.[0]?.text ??
+        'No pude generar una respuesta.'
+      );
     } catch (error) {
       console.error('Gemini Error:', error);
-      return { text: 'Hubo un error procesando tu solicitud.' };
+      return 'Hubo un error procesando tu solicitud.';
     }
   }
 }
