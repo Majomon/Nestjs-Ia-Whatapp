@@ -35,7 +35,7 @@ const tools: Tool[] = [
 
 export class GeminiAgent {
   private ai: GoogleGenAI;
-  private modelName = 'gemini-1.5-flash';
+  private modelName = 'gemini-1.5-flash-001';
   private backendUrl =
     process.env.BACKEND_URL || 'https://desafio-laburen-vgux.onrender.com';
 
