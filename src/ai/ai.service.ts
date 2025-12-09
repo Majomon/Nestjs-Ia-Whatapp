@@ -1,13 +1,6 @@
 // src/ai/ai.service.ts
 import { Injectable } from '@nestjs/common';
 import { GeminiAgent, ChatMessage } from './gemini.agent';
-import axios from 'axios';
-
-interface UserState {
-  query?: string;
-  page: number;
-  limit: number;
-}
 
 @Injectable()
 export class AiService {
@@ -21,8 +14,10 @@ export class AiService {
   async processMessage(userId: string, message: string) {
     if (!this.userHistories[userId]) this.userHistories[userId] = [];
     const history = this.userHistories[userId];
+
     history.push({ role: 'user', text: message });
 
+    // La IA decide qué hacer (saludo, búsqueda, paginación)
     const reply = await this.agent.sendMessage(history, message);
 
     history.push({ role: 'model', text: reply });
