@@ -8,7 +8,7 @@ export class AiService {
 
   constructor() {
     const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!); // FIX
-    this.model = genAI.getGenerativeModel({ model: 'gemini-pro' });
+    this.model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
   }
 
   async processMessage(message: string) {
