@@ -1,6 +1,7 @@
 // src/ai/ai.service.ts
 import { Injectable } from '@nestjs/common';
 import { GeminiAgent, ChatMessage } from './gemini.agent';
+import axios from 'axios';
 
 interface UserState {
   query?: string;
@@ -19,7 +20,6 @@ export class AiService {
   }
 
   async processMessage(userId: string, message: string) {
-    // Inicializar historial y estado si no existe
     if (!this.userHistories[userId]) this.userHistories[userId] = [];
     if (!this.userStates[userId])
       this.userStates[userId] = { page: 1, limit: 5 };
@@ -27,24 +27,49 @@ export class AiService {
     const history = this.userHistories[userId];
     const state = this.userStates[userId];
 
-    // Manejar "siguiente" para paginación
     const lowerMsg = message.trim().toLowerCase();
-    if (lowerMsg === 'sí' || lowerMsg === 'siguiente') {
+
+    if (lowerMsg === 'siguiente') {
       state.page += 1;
     } else {
       state.page = 1;
       state.query = message;
     }
 
-    // Guardar mensaje del usuario
     history.push({ role: 'user', text: message });
 
-    // Llamar al agente IA
-    const reply = await this.agent.sendMessage(history, message);
+    // Si el usuario aún no ha especificado interés, damos ejemplo de productos
+    if (!state.query) {
+      const { data } = await axios.get(
+        `${process.env.BACKEND_URL}/products?limit=5&offset=0`,
+      );
+      const exampleProducts = data.products
+        .map((p) => `${p.tipoPrenda} - ${p.talla} - $${p.precio50U}`)
+        .join('\n');
+      const reply = `¡Tenemos muchos productos! Algunos ejemplos:\n${exampleProducts}\n¿Cuál te interesa?`;
+      history.push({ role: 'model', text: reply });
+      return reply;
+    }
 
-    // Guardar respuesta del modelo
-    history.push({ role: 'model', text: reply });
+    // Llamada a la API con query del usuario
+    const offset = (state.page - 1) * state.limit;
+    const { data } = await axios.get(
+      `${process.env.BACKEND_URL}/products?q=${state.query}&limit=${state.limit}&offset=${offset}`,
+    );
 
-    return reply;
+    if (data.products.length === 0) {
+      const reply = `No encontramos productos que coincidan con "${state.query}". Intenta con otra búsqueda.`;
+      history.push({ role: 'model', text: reply });
+      return reply;
+    }
+
+    const reply = data.products
+      .map((p) => `${p.tipoPrenda} - ${p.talla} - $${p.precio50U}`)
+      .join('\n');
+
+    const fullReply = `Encontré estos productos:\n${reply}\nEscribe "siguiente" para ver más.`;
+
+    history.push({ role: 'model', text: fullReply });
+    return fullReply;
   }
 }
