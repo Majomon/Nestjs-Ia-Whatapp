@@ -30,14 +30,13 @@ export class ProductsService {
   // Buscar todos los productos
   // -----------------------
   // En ProductsService
-  async findAll(q?: string, page = 1, limit = 10) {
-    const skip = (page - 1) * limit;
+  async findAll(q?: string, page = 1) {
+    const skip = page - 1;
     return this.productRepository.find({
       where: q
         ? [{ tipoPrenda: Like(`%${q}%`) }, { descripcion: Like(`%${q}%`) }]
         : {},
       skip,
-      take: limit,
     });
   }
 
