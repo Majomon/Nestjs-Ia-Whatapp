@@ -22,6 +22,9 @@ import { AiModule } from './ai/ai.module';
       url: process.env.DATABASE_URL,
       entities: [Product, Cart, CartItem],
       synchronize: true,
+      ssl: {
+        rejectUnauthorized: false,
+      },
     }),
 
     ProductsModule,
