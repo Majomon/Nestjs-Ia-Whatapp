@@ -4,31 +4,43 @@ import { GoogleGenAI } from '@google/genai';
 
 @Injectable()
 export class AiService {
-  private ai;
+  private model: any;
 
   constructor() {
-    this.ai = new GoogleGenAI({
-      apiKey: process.env.GEMINI_API_KEY!,
-    });
+    const apiKey = process.env.GEMINI_API_KEY;
+    const genAI = new GoogleGenAI({ apiKey });
+
+    this.model = genAI.models;
   }
 
   async processMessage(message: string) {
     const prompt = `
-Eres un agente de ventas para una tienda.
-- Si el usuario pregunta por productos: usar GET /products?q=
-- Si quiere info específica: GET /products/:id
-- Si quiere comprar: POST /carts
-- Si quiere editar: PATCH /carts/:id
-Responde siempre con texto y, si corresponde, una acción sugerida.
+Eres un agente de ventas. Debes responder como un asistente que puede ejecutar llamadas HTTP.
+Si el usuario pregunta por productos, llama: GET /products?q=loquequiera
+Si quiere un detalle, llama: GET /products/:id
+Si quiere comprar, llama: POST /carts con el body adecuado.
+Si quiere modificar un carrito: PATCH /carts/:id
+
+Responde SIEMPRE con texto claro y solo si es necesario propone una acción.
 
 Mensaje del cliente: ${message}
 `;
 
-    const response = await this.ai.models.generateContent({
-      model: 'gemini-2.5-flash', // 🔥 modelo actualizado
-      contents: prompt,
-    });
+    try {
+      const response = await this.model.generateContent({
+        model: 'gemini-2.0-flash',
+        contents: prompt,
+      });
 
-    return response.text().trim();
+      // La SDK nueva devuelve el texto así:
+      return (
+        response.text ??
+        response.candidates?.[0]?.content?.parts?.[0]?.text ??
+        'No pude generar una respuesta.'
+      );
+    } catch (error) {
+      console.error('Gemini Error:', error);
+      return 'Hubo un error procesando tu solicitud.';
+    }
   }
 }
