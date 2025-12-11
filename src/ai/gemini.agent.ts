@@ -154,24 +154,26 @@ Precio por 200 unidades: $X
     // -------------------------------
     // ADD TO CART
     // -------------------------------
+
     if (funcCall?.name === 'addToCart') {
       const id = Number(funcCall.args?.id);
       const qty = Number(funcCall.args?.qty);
 
-      // Traer producto (solo para el nombre en la respuesta)
+      // Traer producto (para el nombre y validación)
       const { data: product } = await axios.get(
         `${this.backendUrl}/products/${id}`,
       );
       if (!product) return `No encontré el producto con ID ${id}.`;
 
-      // Intentar actualizar carrito existente
+      // Intentar actualizar carrito existente o crear nuevo
       let cart;
       try {
-        // Si existe, actualizamos
         const { data: existing } = await axios.get(
           `${this.backendUrl}/carts/user/${userId}`,
         );
-        const items = existing.items.map((i: any) => ({
+
+        // Preparar items actualizados
+        let items = existing.items.map((i: any) => ({
           product_id: i.product.id,
           qty: i.product.id === id ? i.qty + qty : i.qty,
         }));
@@ -184,7 +186,7 @@ Precio por 200 unidades: $X
         );
         cart = updated;
       } catch {
-        // Si no existe, creamos
+        // Crear carrito si no existía
         const { data: created } = await axios.post(`${this.backendUrl}/carts`, {
           userId,
           items: [{ product_id: id, qty }],
@@ -192,23 +194,22 @@ Precio por 200 unidades: $X
         cart = created;
       }
 
-      // Formatear carrito
-      let total = 0;
-      const lines = cart.items.map((item: any) => {
-        const p = item.product;
-        const pricePerUnit =
-          item.qty <= 50
-            ? p.precio50U
-            : item.qty <= 100
-              ? p.precio100U
-              : p.precio200U;
-        total += pricePerUnit * item.qty;
-        return `${item.qty} x ${p.tipoPrenda} — $${pricePerUnit * item.qty}`;
+      // -------------------------------
+      // Pasar el carrito completo a Gemini para que genere el mensaje
+      // -------------------------------
+      const follow = await chat.sendMessage({
+        message: [
+          {
+            functionResponse: {
+              name: funcCall.name,
+              response: cart, // TODO: toda la info del carrito con productos
+            },
+          },
+        ],
       });
 
-      return `✅ Agregaste ${qty} x ${product.tipoPrenda} al carrito.\n\n🛒 Tu carrito:\n${lines.join('\n')}\nTotal: $${total}\nPodés agregar otro producto 😊`;
+      // Extraemos el texto generado por Gemini
+      return this.extractText(follow.candidates?.[0]?.content?.parts ?? []);
     }
-
-    return this.extractText(content?.parts ?? []);
   }
 }

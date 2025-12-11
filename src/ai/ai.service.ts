@@ -18,7 +18,8 @@ export class AiService {
 
     const reply = await this.agent.sendMessage(userId, history, message);
 
-    history.push({ role: 'model', text: reply });
-    return reply;
+    history.push({ role: 'model', text: reply ?? '' });
+
+    return reply ?? '';
   }
 }
