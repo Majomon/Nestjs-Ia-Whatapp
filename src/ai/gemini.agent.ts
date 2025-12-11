@@ -209,7 +209,8 @@ Precio por 200 unidades: $X
       });
 
       // Extraemos el texto generado por Gemini
-      return this.extractText(follow.candidates?.[0]?.content?.parts ?? []);
+      const result = this.extractText(follow.candidates?.[0]?.content?.parts ?? []);
+      return result || 'Perdón, no entendí tu mensaje 😅';
     }
   }
 }
