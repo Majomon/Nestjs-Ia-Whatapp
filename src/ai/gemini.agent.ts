@@ -16,9 +16,7 @@ const tools: Tool[] = [
           'Busca productos reales en el backend usando un término interpretado del usuario.',
         parameters: {
           type: Type.OBJECT,
-          properties: {
-            query: { type: Type.STRING },
-          },
+          properties: { query: { type: Type.STRING } },
         },
       },
       {
@@ -26,9 +24,7 @@ const tools: Tool[] = [
         description: 'Obtiene un solo producto por su ID.',
         parameters: {
           type: Type.OBJECT,
-          properties: {
-            id: { type: Type.NUMBER },
-          },
+          properties: { id: { type: Type.NUMBER } },
           required: ['id'],
         },
       },
@@ -37,18 +33,8 @@ const tools: Tool[] = [
         description: 'Agrega un producto al carrito por ID y cantidad',
         parameters: {
           type: Type.OBJECT,
-          properties: {
-            id: { type: Type.NUMBER },
-            qty: { type: Type.NUMBER },
-          },
+          properties: { id: { type: Type.NUMBER }, qty: { type: Type.NUMBER } },
           required: ['id', 'qty'],
-        },
-      },
-      {
-        name: 'viewCart',
-        description: 'Muestra los productos actualmente en el carrito',
-        parameters: {
-          type: Type.OBJECT,
         },
       },
     ],
@@ -96,7 +82,7 @@ FORMATO CUANDO SON VARIOS PRODUCTOS (listado)
 ────────────────────────────────
 - Siempre saludás con una frase corta y cálida: “¡Mirá estas opciones que te pueden gustar! ✨”
 - Listá máximo 5 productos.
-- Cada producto debe ocupar 2–3 líneas máximo.
+- Cada producto debe ocupar 2-3 líneas máximo.
 - El formato debe ser EXACTAMENTE:
 
 ID: X — 🛍️ **Tipo de prenda (Categoría)**
@@ -140,21 +126,15 @@ Precio por 200 unidades: $X
     // -------------------------------
     if (funcCall?.name === 'getProducts') {
       const query = (funcCall.args?.query as string) ?? '';
-      try {
-        const { data } = await axios.get(
-          `${this.backendUrl}/products?q=${encodeURIComponent(query)}&limit=5`,
-        );
-
-        const follow = await chat.sendMessage({
-          message: [
-            { functionResponse: { name: funcCall.name, response: data } },
-          ],
-        });
-
-        return this.extractText(follow.candidates?.[0]?.content?.parts ?? []);
-      } catch {
-        return 'Hubo un problema al consultar los productos. Intentá de nuevo.';
-      }
+      const { data } = await axios.get(
+        `${this.backendUrl}/products?q=${encodeURIComponent(query)}&limit=5`,
+      );
+      const follow = await chat.sendMessage({
+        message: [
+          { functionResponse: { name: funcCall.name, response: data } },
+        ],
+      });
+      return this.extractText(follow.candidates?.[0]?.content?.parts ?? []);
     }
 
     // -------------------------------
@@ -162,18 +142,13 @@ Precio por 200 unidades: $X
     // -------------------------------
     if (funcCall?.name === 'getProductById') {
       const id = Number(funcCall.args?.id);
-      try {
-        const { data } = await axios.get(`${this.backendUrl}/products/${id}`);
-        const follow = await chat.sendMessage({
-          message: [
-            { functionResponse: { name: funcCall.name, response: data } },
-          ],
-        });
-
-        return this.extractText(follow.candidates?.[0]?.content?.parts ?? []);
-      } catch {
-        return `No encontré el producto con ID ${id}. Verificá el número.`;
-      }
+      const { data } = await axios.get(`${this.backendUrl}/products/${id}`);
+      const follow = await chat.sendMessage({
+        message: [
+          { functionResponse: { name: funcCall.name, response: data } },
+        ],
+      });
+      return this.extractText(follow.candidates?.[0]?.content?.parts ?? []);
     }
 
     // -------------------------------
@@ -183,115 +158,57 @@ Precio por 200 unidades: $X
       const id = Number(funcCall.args?.id);
       const qty = Number(funcCall.args?.qty);
 
-      // Obtener producto
+      // Traer producto (solo para el nombre en la respuesta)
       const { data: product } = await axios.get(
         `${this.backendUrl}/products/${id}`,
       );
       if (!product) return `No encontré el producto con ID ${id}.`;
 
-      // Obtener carrito del usuario
+      // Intentar actualizar carrito existente
       let cart;
       try {
-        const res = await axios.get(`${this.backendUrl}/carts/user/${userId}`);
-        cart = res.data;
-      } catch {
-        cart = null;
-      }
-
-      // Preparar items
-      let items: { product_id: number; qty: number }[] = [];
-      if (cart && cart.items?.length) {
-        items = cart.items.map((i: any) => ({
-          product_id: i.product_id,
-          qty: i.product_id === id ? i.qty + qty : i.qty,
+        // Si existe, actualizamos
+        const { data: existing } = await axios.get(
+          `${this.backendUrl}/carts/user/${userId}`,
+        );
+        const items = existing.items.map((i: any) => ({
+          product_id: i.product.id,
+          qty: i.product.id === id ? i.qty + qty : i.qty,
         }));
-        if (!items.find((i) => i.product_id === id))
+        if (!items.find((i: any) => i.product_id === id))
           items.push({ product_id: id, qty });
 
-        const updated = await axios.patch(
-          `${this.backendUrl}/carts/${cart.id}`,
+        const { data: updated } = await axios.patch(
+          `${this.backendUrl}/carts/${existing.id}`,
           { items },
         );
-        cart = updated.data;
-      } else {
-        items = [{ product_id: id, qty }];
-        const res = await axios.post(`${this.backendUrl}/carts`, {
+        cart = updated;
+      } catch {
+        // Si no existe, creamos
+        const { data: created } = await axios.post(`${this.backendUrl}/carts`, {
           userId,
-          items,
+          items: [{ product_id: id, qty }],
         });
-        cart = res.data;
+        cart = created;
       }
 
-      // Calcular total según precios reales
+      // Formatear carrito
       let total = 0;
-      for (const item of cart.items) {
-        let p = item.product;
-        if (!p) {
-          const { data } = await axios.get(
-            `${this.backendUrl}/products/${item.product_id}`,
-          );
-          p = data;
-        }
-
-        let pricePerUnit =
+      const lines = cart.items.map((item: any) => {
+        const p = item.product;
+        const pricePerUnit =
           item.qty <= 50
             ? p.precio50U
             : item.qty <= 100
               ? p.precio100U
               : p.precio200U;
-
         total += pricePerUnit * item.qty;
-      }
+        return `${item.qty} x ${p.tipoPrenda} — $${pricePerUnit * item.qty}`;
+      });
 
-      return `✅ Agregaste ${qty} x ${product.tipoPrenda} al carrito.\nTotal actual: $${total}\nPodés ver tu carrito o agregar otro producto 😊`;
+      return `✅ Agregaste ${qty} x ${product.tipoPrenda} al carrito.\n\n🛒 Tu carrito:\n${lines.join('\n')}\nTotal: $${total}\nPodés agregar otro producto 😊`;
     }
 
-    // -------------------------------
-    // VIEW CART
-    // -------------------------------
-    if (funcCall?.name === 'viewCart') {
-      try {
-        const { data: cart } = await axios.get(
-          `${this.backendUrl}/carts/user/${userId}`,
-        );
-        if (!cart || !cart.items?.length) return 'Tu carrito está vacío 🛒';
-
-        const lines: string[] = [];
-        let total = 0;
-
-        for (const item of cart.items) {
-          // Traer el producto desde backend si no existe
-          let p = item.product;
-          if (!p) {
-            const { data } = await axios.get(
-              `${this.backendUrl}/products/${item.product_id}`,
-            );
-            p = data;
-          }
-
-          let pricePerUnit =
-            item.qty <= 50
-              ? p.precio50U
-              : item.qty <= 100
-                ? p.precio100U
-                : p.precio200U;
-
-          lines.push(
-            `${item.qty} x ${p.tipoPrenda} — $${pricePerUnit * item.qty}`,
-          );
-          total += pricePerUnit * item.qty;
-        }
-
-        return `🛒 Tu carrito:\n${lines.join('\n')}\nTotal: $${total}`;
-      } catch (err) {
-        console.log('Error viewCart:', err);
-        return 'Tu carrito está vacío 🛒';
-      }
-    }
-
-    // -------------------------------
-    // Respuesta normal
-    // -------------------------------
     return this.extractText(content?.parts ?? []);
   }
 }
