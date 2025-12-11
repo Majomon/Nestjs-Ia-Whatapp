@@ -155,6 +155,7 @@ Precio por 200 unidades: $X
     // ADD TO CART
     // -------------------------------
 
+
     if (funcCall?.name === 'addToCart') {
       const id = Number(funcCall.args?.id);
       const qty = Number(funcCall.args?.qty);
