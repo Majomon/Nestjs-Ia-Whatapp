@@ -121,6 +121,11 @@ Precio por 200 unidades: $X
     const content = candidate?.content;
     const funcCall = this.extractFunctionCall(content);
 
+    // Si no hay llamada a función, devolvemos el texto normal
+    if (!funcCall) {
+      return this.extractText(candidate?.content?.parts ?? []);
+    }
+
     // -------------------------------
     // GET PRODUCTS
     // -------------------------------
