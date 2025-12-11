@@ -1,7 +1,6 @@
-// src/whatsapp/whatsapp.service.ts
-import { Injectable } from '@nestjs/common';
-import { AiService } from '../ai/ai.service';
+import { Injectable, InternalServerErrorException } from '@nestjs/common';
 import { Twilio } from 'twilio';
+import { AiService } from '../ai/ai.service';
 
 @Injectable()
 export class WhatsappService {
@@ -18,17 +17,26 @@ export class WhatsappService {
     const message = body.Body;
     const from = body.From;
 
-    const aiReply = await this.ai.processMessage(from, message);
+    let aiReply: string;
 
-    // Solo enviar texto
-    const replyText =
-      typeof aiReply === 'string' ? aiReply : JSON.stringify(aiReply);
+    try {
+      aiReply = await this.ai.processMessage(from, message);
+      aiReply = typeof aiReply === 'string' ? aiReply : JSON.stringify(aiReply);
+    } catch (error) {
+      console.error('Error en AI Service:', error);
+      aiReply = 'Lo siento, tuvimos un problema procesando tu mensaje. Intenta nuevamente más tarde.';
+    }
 
-    await this.client.messages.create({
-      from: process.env.TWILIO_WHATSAPP_NUMBER,
-      to: from,
-      body: replyText,
-    });
+    try {
+      await this.client.messages.create({
+        from: process.env.TWILIO_WHATSAPP_NUMBER,
+        to: from,
+        body: aiReply,
+      });
+    } catch (error) {
+      console.error('Error enviando mensaje por Twilio:', error);
+      throw new InternalServerErrorException('No se pudo enviar la respuesta por WhatsApp.');
+    }
 
     return 'OK';
   }
