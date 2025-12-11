@@ -82,7 +82,7 @@ Eres un agente de ventas experto en moda.
 
     if (funcCall) {
       if (funcCall.name === 'getProducts') {
-        const { data } = await axios.get(`${this.backendUrl}/products}`);
+        const { data } = await axios.get(`${this.backendUrl}/products`);
 
         // Respuesta a la función
         const follow = await chat.sendMessage({
