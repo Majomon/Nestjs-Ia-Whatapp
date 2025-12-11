@@ -1,12 +1,12 @@
 // src/carts/entities/cart.entity.ts
 import {
-  Entity,
-  PrimaryGeneratedColumn,
-  OneToMany,
   Column,
   CreateDateColumn,
-  UpdateDateColumn,
+  Entity,
   Index,
+  OneToMany,
+  PrimaryGeneratedColumn,
+  UpdateDateColumn,
 } from 'typeorm';
 import { CartItem } from './cart-item.entity';
 
