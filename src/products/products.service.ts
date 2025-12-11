@@ -24,7 +24,7 @@ export class ProductsService {
   constructor(
     @InjectRepository(Product)
     private readonly productRepository: Repository<Product>,
-  ) {}
+  ) { }
 
   // -----------------------
   // Buscar todos los productos
@@ -32,14 +32,22 @@ export class ProductsService {
 
   async findAll(q?: string, page = 1, limit = 100) {
     const where = q
-      ? [{ tipoPrenda: ILike(`%${q}%`) }, { descripcion: ILike(`%${q}%`) }]
+      ? [
+        { tipoPrenda: ILike(`%${q}%`) },
+        { descripcion: ILike(`%${q}%`) }
+      ]
       : {};
+
     const [data, total] = await this.productRepository.findAndCount({
       where,
+      order: { id: 'ASC' },
       take: limit,
+      skip: (page - 1) * limit,
     });
+
     return { products: data, total };
   }
+
 
   // -----------------------
   // Buscar producto por ID
