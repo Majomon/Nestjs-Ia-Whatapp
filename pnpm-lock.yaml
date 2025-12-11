@@ -84,6 +84,9 @@ importers:
       '@types/node':
         specifier: ^22.10.7
         version: 22.19.2
+      '@types/pluralize':
+        specifier: ^0.0.33
+        version: 0.0.33
       '@types/supertest':
         specifier: ^6.0.2
         version: 6.0.3
@@ -901,6 +904,9 @@ packages:
 
   '@types/node@22.19.2':
     resolution: {integrity: sha512-LPM2G3Syo1GLzXLGJAKdqoU35XvrWzGJ21/7sgZTUpbkBaOasTj8tjwn6w+hCkqaa1TfJ/w67rJSwYItlJ2mYw==}
+
+  '@types/pluralize@0.0.33':
+    resolution: {integrity: sha512-JOqsl+ZoCpP4e8TDke9W79FDcSgPAR0l6pixx2JHkhnRjvShyYiAYw2LVsnA7K08Y6DeOnaU6ujmENO4os/cYg==}
 
   '@types/qs@6.14.0':
     resolution: {integrity: sha512-eOunJqu0K1923aExK6y8p6fsihYEn/BYuQ4g0CxAAgFc4b/ZLN4CrsRZ55srTdqoiLzU2B2evC+apEIxprEzkQ==}
@@ -4387,6 +4393,8 @@ snapshots:
   '@types/node@22.19.2':
     dependencies:
       undici-types: 6.21.0
+
+  '@types/pluralize@0.0.33': {}
 
   '@types/qs@6.14.0': {}
 
