@@ -41,12 +41,20 @@ export class CartsService {
     return this.getCartByUser(userId);
   }
 
-  async updateCartItem(userId: string, productId: number, qty: number) {
-    const cart = await this.getCartByUser(userId);
+  async updateCartItemByCartId(cartId: number, productId: number, qty: number) {
+    const cart = await this.cartRepo.findOne({
+      where: { id: cartId },
+      relations: ['items', 'items.product']
+    });
+    if (!cart) throw new NotFoundException(`Carrito ${cartId} no encontrado`);
+
     const item = cart.items.find(i => i.product.id === productId);
     if (!item) throw new NotFoundException(`Producto ${productId} no existe en tu carrito`);
+
     if (qty === 0) await this.itemRepo.remove(item);
     else { item.qty = qty; await this.itemRepo.save(item); }
-    return this.getCartByUser(userId);
+
+    return this.getCartByUser(cart.userId); // devuelve el carrito actualizado
   }
+
 }

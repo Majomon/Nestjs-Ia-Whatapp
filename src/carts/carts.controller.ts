@@ -16,8 +16,13 @@ export class CartsController {
     return this.service.addOrUpdateItem(body.userId, body.productId, body.qty);
   }
 
-  @Patch('update-item')
-  updateItem(@Body() body: { userId: string; productId: number; qty: number }) {
-    return this.service.updateCartItem(body.userId, body.productId, body.qty);
+  @Patch(':id')
+  updateItem(
+    @Param('id') cartId: number,
+    @Body() body: { productId: number; qty: number },
+  ) {
+    // Primero buscás el carrito por id
+    return this.service.updateCartItemByCartId(cartId, body.productId, body.qty);
   }
+
 }

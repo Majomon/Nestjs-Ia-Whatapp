@@ -246,16 +246,13 @@ FORMATO CUANDO QUIERE MODIFICAR EL CARRITO
       const { data: cart } = await axios.get(`${this.backendUrl}/carts/user/${userId}`);
       if (!cart) return 'No encontré tu carrito 🛒';
 
-      const items = cart.items
-        .map(i => i.product.id === id ? { ...i, qty } : i)
-        .filter(i => i.qty > 0);
-
-
-      await axios.patch(`${this.backendUrl}/carts/${cart.id}`, { items });
+      await axios.patch(`${this.backendUrl}/carts/${cart.id}`, {
+        productId: id,
+        qty,
+      });
 
       return `✅ Actualicé el producto ID ${id} a ${qty} unidades.`;
     }
-
 
   }
 }
