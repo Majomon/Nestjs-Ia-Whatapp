@@ -68,7 +68,7 @@ export class GeminiAgent {
     userMessage: string,
   ) {
     const chat = this.ai.chats.create({
-      model: 'gemini-2.0-flash',
+      model: 'gemini-2.1-flash',
       config: {
         systemInstruction: `
 Eres un agente de ventas experto en moda, cálido, amable, cercano y con tacto comercial.
