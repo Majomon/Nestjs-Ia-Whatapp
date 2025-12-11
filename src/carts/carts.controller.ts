@@ -4,29 +4,29 @@ import { CartsService } from './carts.service';
 
 @Controller('carts')
 export class CartsController {
-  constructor(private readonly service: CartsService) {}
+  constructor(private readonly service: CartsService) { }
 
-  @Post()
-  create(
-    @Body()
-    body: {
-      userId: string;
-      items: { product_id: number; qty: number }[];
-    },
-  ) {
-    return this.service.createCart(body.userId, body.items);
-  }
-
-  @Patch(':id')
-  update(
-    @Param('id') id: number,
-    @Body() body: { items: { product_id: number; qty: number }[] },
-  ) {
-    return this.service.updateCart(id, body.items);
-  }
-
+  // Obtener carrito del usuario (lo crea si no existe)
   @Get('user/:userId')
-  getByUser(@Param('userId') userId: string) {
+  getCart(@Param('userId') userId: string) {
     return this.service.getCartByUser(userId);
+  }
+
+  // Agregar o sumar cantidad de un producto
+  @Post('add')
+  addItem(
+    @Body()
+    body: { userId: string; productId: number; qty: number },
+  ) {
+    return this.service.addOrUpdateItem(body.userId, body.productId, body.qty);
+  }
+
+  // Actualizar cantidad de un producto específico
+  @Patch('update')
+  updateItem(
+    @Body()
+    body: { userId: string; productId: number; qty: number },
+  ) {
+    return this.service.updateCartItem(body.userId, body.productId, body.qty);
   }
 }
