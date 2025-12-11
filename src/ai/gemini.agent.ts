@@ -133,7 +133,6 @@ Precio por 200 unidades: $X
     const response = await chat.sendMessage({ message: userMessage });
     const candidate = response.candidates?.[0];
     const content = candidate?.content;
-
     const funcCall = this.extractFunctionCall(content);
 
     // -------------------------------
@@ -145,15 +144,12 @@ Precio por 200 unidades: $X
         const { data } = await axios.get(
           `${this.backendUrl}/products?q=${encodeURIComponent(query)}&limit=5`,
         );
-        const follow = await chat.sendMessage({
+        await chat.sendMessage({
           message: [
             { functionResponse: { name: funcCall.name, response: data } },
           ],
         });
-        return (
-          this.extractText(follow.candidates?.[0]?.content?.parts ?? []) +
-          `\n\nSi querés, podés pedirme el detalle de un producto indicando su ID o ver otra categoría 😊`
-        );
+        return this.extractText(candidate?.content?.parts ?? []);
       } catch {
         return 'Hubo un problema al consultar los productos. Intentá de nuevo.';
       }
@@ -166,15 +162,12 @@ Precio por 200 unidades: $X
       const id = Number(funcCall.args?.id);
       try {
         const { data } = await axios.get(`${this.backendUrl}/products/${id}`);
-        const follow = await chat.sendMessage({
+        await chat.sendMessage({
           message: [
             { functionResponse: { name: funcCall.name, response: data } },
           ],
         });
-        return (
-          this.extractText(follow.candidates?.[0]?.content?.parts ?? []) +
-          `\n\nPodés agregar este producto al carrito indicando ID y cantidad. También podés ver otra categoría o ver otro producto por ID 😊`
-        );
+        return this.extractText(candidate?.content?.parts ?? []);
       } catch {
         return `No encontré el producto con ID ${id}. Verificá el número.`;
       }
@@ -205,15 +198,21 @@ Precio por 200 unidades: $X
       // Preparar items
       let items: { product_id: number; qty: number }[] = [];
       if (cart && cart.items?.length) {
+        // actualizamos cantidades si ya existía
         items = cart.items.map((i: any) => ({
-          product_id: i.product.id,
-          qty: i.product.id === id ? i.qty + qty : i.qty,
+          product_id: i.product_id, // usar product_id directamente
+          qty: i.product_id === id ? i.qty + qty : i.qty,
         }));
+        // si no estaba, lo agregamos
         if (!items.find((i) => i.product_id === id))
           items.push({ product_id: id, qty });
 
         // Actualizar carrito
-        await axios.patch(`${this.backendUrl}/carts/${cart.id}`, { items });
+        const updated = await axios.patch(
+          `${this.backendUrl}/carts/${cart.id}`,
+          { items },
+        );
+        cart = updated.data; // usamos el carrito actualizado
       } else {
         items = [{ product_id: id, qty }];
         const res = await axios.post(`${this.backendUrl}/carts`, {
@@ -223,15 +222,19 @@ Precio por 200 unidades: $X
         cart = res.data;
       }
 
-      // Calcular total
-      const total = items.reduce((sum, i) => {
-        if (i.product_id === product.id) return sum + product.price * i.qty;
-        const itemInCart = cart.items.find(
-          (ci: any) => ci.product.id === i.product_id,
-        );
-        const price = itemInCart ? itemInCart.product.price : 0;
-        return sum + price * i.qty;
-      }, 0);
+      // Calcular total usando los productos actuales
+      let total = 0;
+      for (const item of cart.items) {
+        // obtener producto completo por id
+        let p = item.product;
+        if (!p) {
+          const { data } = await axios.get(
+            `${this.backendUrl}/products/${item.product_id}`,
+          );
+          p = data;
+        }
+        total += p.price * item.qty;
+      }
 
       return `✅ Agregaste ${qty} x ${product.name} al carrito.\nTotal actual: $${total}\nPodés ver tu carrito o agregar otro producto 😊`;
     }
