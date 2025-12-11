@@ -5,7 +5,7 @@ import { WhatsappController } from './whatapp.controller';
 import { WhatsappService } from './whatapp.service';
 
 @Module({
-  imports: [AiModule], // 👈 IMPORTARLO AQUÍ
+  imports: [AiModule],
   controllers: [WhatsappController],
   providers: [WhatsappService],
 })
