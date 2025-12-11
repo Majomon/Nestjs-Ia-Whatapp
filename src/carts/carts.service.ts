@@ -15,47 +15,55 @@ export class CartsService {
   ) {}
 
   async getCartByUser(userId: string) {
-    const cart = await this.cartRepo.findOne({
+    let cart = await this.cartRepo.findOne({
       where: { userId },
       relations: ['items', 'items.product'],
     });
-    if (!cart) throw new NotFoundException('Cart not found for this user');
+
+    if (!cart) {
+      // Si no existe, lo creamos vacío
+      cart = await this.cartRepo.save({ userId });
+    }
+
     return cart;
   }
 
-  async createCart(
-    userId: string,
-    items: { product_id: number; qty: number }[],
-  ) {
-    const cart = await this.cartRepo.save({ userId });
+  async addOrUpdateItem(userId: string, productId: number, qty: number) {
+    const cart = await this.getCartByUser(userId);
 
-    for (const i of items) {
-      const product = await this.productRepo.findOne({
-        where: { id: i.product_id },
-      });
-      if (!product)
-        throw new NotFoundException(`Product ${i.product_id} not found`);
+    // Verificar si el item ya existe
+    let item = cart.items.find(i => i.product.id === productId);
 
-      const item = this.itemRepo.create({
-        cart,
-        product,
-        qty: i.qty,
-      });
+    if (item) {
+      item.qty = qty > 0 ? item.qty + qty : 0;
+      if (item.qty === 0) {
+        await this.itemRepo.remove(item);
+      } else {
+        await this.itemRepo.save(item);
+      }
+    } else if (qty > 0) {
+      const product = await this.productRepo.findOne({ where: { id: productId } });
+      if (!product) throw new NotFoundException(`Producto ${productId} no encontrado`);
 
+      item = this.itemRepo.create({ cart, product, qty });
       await this.itemRepo.save(item);
     }
 
-    return this.cartRepo.findOne({
-      where: { id: cart.id },
-      relations: ['items', 'items.product'],
-    });
+    return this.getCartByUser(userId);
   }
 
-  async updateCart(id: number, items: { product_id: number; qty: number }[]) {
-    const cart = await this.cartRepo.findOne({ where: { id } });
-    if (!cart) throw new NotFoundException('Cart not found');
+  async updateCartItem(userId: string, productId: number, qty: number) {
+    const cart = await this.getCartByUser(userId);
+    const item = cart.items.find(i => i.product.id === productId);
+    if (!item) throw new NotFoundException(`Producto ${productId} no existe en tu carrito`);
 
-    await this.itemRepo.delete({ cart: { id } });
-    return this.createCart(cart.userId, items);
+    if (qty === 0) {
+      await this.itemRepo.remove(item);
+    } else {
+      item.qty = qty;
+      await this.itemRepo.save(item);
+    }
+
+    return this.getCartByUser(userId);
   }
 }

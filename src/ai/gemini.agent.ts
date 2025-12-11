@@ -196,96 +196,45 @@ FORMATO CUANDO QUIERE MODIFICAR EL CARRITO
       return this.extractText(follow.candidates?.[0]?.content?.parts ?? []);
     }
 
-    // -------------------------------
     // ADD TO CART
-    // -------------------------------
-
     if (funcCall?.name === 'addToCart') {
       const id = Number(funcCall.args?.id);
       const qty = Number(funcCall.args?.qty);
 
-      // Traer producto (para el nombre y validación)
-      const { data: product } = await axios.get(
-        `${this.backendUrl}/products/${id}`,
-      );
+      const { data: product } = await axios.get(`${this.backendUrl}/products/${id}`);
       if (!product) return `No encontré el producto con ID ${id}.`;
 
-      // Intentar actualizar carrito existente o crear nuevo
-      let cart;
-      try {
-        const { data: existing } = await axios.get(
-          `${this.backendUrl}/carts/user/${userId}`,
-        );
-
-        // Preparar items actualizados
-        let items = existing.items.map((i: any) => ({
-          product_id: i.product.id,
-          qty: i.product.id === id ? i.qty + qty : i.qty,
-        }));
-        if (!items.find((i: any) => i.product_id === id))
-          items.push({ product_id: id, qty });
-
-        const { data: updated } = await axios.patch(
-          `${this.backendUrl}/carts/${existing.id}`,
-          { items },
-        );
-        cart = updated;
-      } catch {
-        // Crear carrito si no existía
-        const { data: created } = await axios.post(`${this.backendUrl}/carts`, {
-          userId,
-          items: [{ product_id: id, qty }],
-        });
-        cart = created;
-      }
-
-      // -------------------------------
-      // Pasar el carrito completo a Gemini para que genere el mensaje
-      // -------------------------------
-      const follow = await chat.sendMessage({
-        message: [
-          {
-            functionResponse: {
-              name: funcCall.name,
-              response: cart, // TODO: toda la info del carrito con productos
-            },
-          },
-        ],
+      // Usamos endpoint que asegura un solo carrito por usuario
+      const { data: cart } = await axios.post(`${this.backendUrl}/carts/add-item`, {
+        userId,
+        productId: id,
+        qty,
       });
 
-      // Extraemos el texto generado por Gemini
-      const result = this.extractText(follow.candidates?.[0]?.content?.parts ?? []);
-      return result || 'Perdón, no entendí tu mensaje 😅';
+      return `¡Agregué ${qty} unidades del producto ID ${id} a tu carrito! ✅`;
     }
 
-
-    // -------------------------------
     // VIEW CART
-    // -------------------------------
     if (funcCall?.name === 'viewCart') {
       const { data: cart } = await axios.get(`${this.backendUrl}/carts/user/${userId}`);
 
-      if (!cart || !cart.items.length) return 'Tu carrito está vacío 🛒';
+      if (!cart.items.length) return 'Tu carrito está vacío 🛒';
 
       const lines = cart.items.map((item: any) => {
         const p = item.product;
-        const pricePerUnit =
-          item.qty <= 50 ? p.precio50U :
-            item.qty <= 100 ? p.precio100U :
-              p.precio200U;
+        const pricePerUnit = item.qty <= 50 ? p.precio50U : item.qty <= 100 ? p.precio100U : p.precio200U;
         return `${item.qty} x ${p.tipoPrenda} — $${pricePerUnit * item.qty} (ID: ${p.id})`;
       });
+
       const total = cart.items.reduce((sum: number, item: any) => {
         const p = item.product;
-        const pricePerUnit =
-          item.qty <= 50 ? p.precio50U :
-            item.qty <= 100 ? p.precio100U :
-              p.precio200U;
+        const pricePerUnit = item.qty <= 50 ? p.precio50U : item.qty <= 100 ? p.precio100U : p.precio200U;
         return sum + pricePerUnit * item.qty;
       }, 0);
 
-      return `🛒 Tu carrito actual:\n${lines.join('\n')}\nTotal: $${total}`;
+      return `🛒 ¡Acá tenés tu carrito actual!\n${lines.join('\n')}\nTotal: $${total}`;
     }
+
 
     // -------------------------------
     // UPDATE CART ITEM
