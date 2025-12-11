@@ -144,12 +144,18 @@ Precio por 200 unidades: $X
         const { data } = await axios.get(
           `${this.backendUrl}/products?q=${encodeURIComponent(query)}&limit=5`,
         );
-        await chat.sendMessage({
+
+        const follow = await chat.sendMessage({
           message: [
             { functionResponse: { name: funcCall.name, response: data } },
           ],
         });
-        return this.extractText(candidate?.content?.parts ?? []);
+
+        const followText = this.extractText(
+          follow.candidates?.[0]?.content?.parts ?? [],
+        );
+
+        return followText;
       } catch {
         return 'Hubo un problema al consultar los productos. Intentá de nuevo.';
       }
@@ -162,12 +168,16 @@ Precio por 200 unidades: $X
       const id = Number(funcCall.args?.id);
       try {
         const { data } = await axios.get(`${this.backendUrl}/products/${id}`);
-        await chat.sendMessage({
+        const follow = await chat.sendMessage({
           message: [
             { functionResponse: { name: funcCall.name, response: data } },
           ],
         });
-        return this.extractText(candidate?.content?.parts ?? []);
+
+        const followText = this.extractText(
+          follow.candidates?.[0]?.content?.parts ?? [],
+        );
+        return followText;
       } catch {
         return `No encontré el producto con ID ${id}. Verificá el número.`;
       }
