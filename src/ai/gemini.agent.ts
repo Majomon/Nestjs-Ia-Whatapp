@@ -1,6 +1,7 @@
 // src/ai/gemini.agent.ts
 import { GoogleGenAI, Tool, Type, Part, Content } from '@google/genai';
 import axios from 'axios';
+import pluralize from 'pluralize';
 
 export interface ChatMessage {
   role: 'user' | 'model';
@@ -40,23 +41,17 @@ const tools: Tool[] = [
       {
         name: 'viewCart',
         description: 'Muestra los productos actuales en el carrito del usuario',
-        parameters: {
-          type: Type.OBJECT,
-          properties: {},
-        },
+        parameters: { type: Type.OBJECT, properties: {} },
       },
       {
         name: 'updateCartItem',
         description: 'Actualiza la cantidad de un producto en el carrito',
         parameters: {
           type: Type.OBJECT,
-          properties: {
-            id: { type: Type.NUMBER },
-            qty: { type: Type.NUMBER }
-          },
+          properties: { id: { type: Type.NUMBER }, qty: { type: Type.NUMBER } },
           required: ['id', 'qty'],
         },
-      }
+      },
     ],
   },
 ];
@@ -80,6 +75,12 @@ export class GeminiAgent {
   private extractFunctionCall(content?: Content) {
     if (!content?.parts) return null;
     return content.parts.find((p) => p.functionCall)?.functionCall ?? null;
+  }
+
+  // 🔹 Normaliza query: solo singular, no toca acentos
+  private normalizeQuery(query: string): string {
+    if (!query) return '';
+    return pluralize.singular(query);
   }
 
   async sendMessage(
@@ -146,14 +147,10 @@ FORMATO CUANDO QUIERE MODIFICAR EL CARRITO
 🗑️ Mostrá: “Eliminé el producto ID X de tu carrito.”
 - Siempre terminá con un mensaje cálido que invite a seguir comprando o ver el carrito:
 “Si querés, podés seguir buscando productos o ver nuevamente tu carrito 😊”
-`
-        ,
+`,
         tools,
       },
-      history: history.map((h) => ({
-        role: h.role,
-        parts: [{ text: h.text }],
-      })),
+      history: history.map((h) => ({ role: h.role, parts: [{ text: h.text }] })),
     });
 
     const response = await chat.sendMessage({ message: userMessage });
@@ -161,24 +158,23 @@ FORMATO CUANDO QUIERE MODIFICAR EL CARRITO
     const content = candidate?.content;
     const funcCall = this.extractFunctionCall(content);
 
-    // Si no hay llamada a función, devolvemos el texto normal
-    if (!funcCall) {
-      return this.extractText(candidate?.content?.parts ?? []);
-    }
+    if (!funcCall) return this.extractText(candidate?.content?.parts ?? []);
 
     // -------------------------------
     // GET PRODUCTS
     // -------------------------------
     if (funcCall?.name === 'getProducts') {
-      const query = (funcCall.args?.query as string) ?? '';
+      const rawQuery = (funcCall.args?.query as string) ?? '';
+      const query = this.normalizeQuery(rawQuery);
+
       const { data } = await axios.get(
         `${this.backendUrl}/products?q=${encodeURIComponent(query)}&limit=5`,
       );
+
       const follow = await chat.sendMessage({
-        message: [
-          { functionResponse: { name: funcCall.name, response: data } },
-        ],
+        message: [{ functionResponse: { name: funcCall.name, response: data } }],
       });
+
       return this.extractText(follow.candidates?.[0]?.content?.parts ?? []);
     }
 
@@ -189,14 +185,14 @@ FORMATO CUANDO QUIERE MODIFICAR EL CARRITO
       const id = Number(funcCall.args?.id);
       const { data } = await axios.get(`${this.backendUrl}/products/${id}`);
       const follow = await chat.sendMessage({
-        message: [
-          { functionResponse: { name: funcCall.name, response: data } },
-        ],
+        message: [{ functionResponse: { name: funcCall.name, response: data } }],
       });
       return this.extractText(follow.candidates?.[0]?.content?.parts ?? []);
     }
 
+    // -------------------------------
     // ADD TO CART
+    // -------------------------------
     if (funcCall?.name === 'addToCart') {
       const id = Number(funcCall.args?.id);
       const qty = Number(funcCall.args?.qty);
@@ -204,7 +200,6 @@ FORMATO CUANDO QUIERE MODIFICAR EL CARRITO
       const { data: product } = await axios.get(`${this.backendUrl}/products/${id}`);
       if (!product) return `No encontré el producto con ID ${id}.`;
 
-      // Usamos endpoint que asegura un solo carrito por usuario
       const { data: cart } = await axios.post(`${this.backendUrl}/carts/add-item`, {
         userId,
         productId: id,
@@ -214,21 +209,24 @@ FORMATO CUANDO QUIERE MODIFICAR EL CARRITO
       return `¡Agregué ${qty} unidades del producto ID ${id} a tu carrito! ✅`;
     }
 
+    // -------------------------------
     // VIEW CART
+    // -------------------------------
     if (funcCall?.name === 'viewCart') {
       const { data: cart } = await axios.get(`${this.backendUrl}/carts/user/${userId}`);
-
       if (!cart.items.length) return 'Tu carrito está vacío 🛒';
 
       const lines = cart.items.map((item: any) => {
         const p = item.product;
-        const pricePerUnit = item.qty <= 50 ? p.precio50U : item.qty <= 100 ? p.precio100U : p.precio200U;
+        const pricePerUnit =
+          item.qty <= 50 ? p.precio50U : item.qty <= 100 ? p.precio100U : p.precio200U;
         return `${item.qty} x ${p.tipoPrenda} — $${pricePerUnit * item.qty} (ID: ${p.id})`;
       });
 
       const total = cart.items.reduce((sum: number, item: any) => {
         const p = item.product;
-        const pricePerUnit = item.qty <= 50 ? p.precio50U : item.qty <= 100 ? p.precio100U : p.precio200U;
+        const pricePerUnit =
+          item.qty <= 50 ? p.precio50U : item.qty <= 100 ? p.precio100U : p.precio200U;
         return sum + pricePerUnit * item.qty;
       }, 0);
 
@@ -245,13 +243,9 @@ FORMATO CUANDO QUIERE MODIFICAR EL CARRITO
       const { data: cart } = await axios.get(`${this.backendUrl}/carts/user/${userId}`);
       if (!cart) return 'No encontré tu carrito 🛒';
 
-      await axios.patch(`${this.backendUrl}/carts/${cart.id}`, {
-        productId: id,
-        qty,
-      });
+      await axios.patch(`${this.backendUrl}/carts/${cart.id}`, { productId: id, qty });
 
       return `✅ Actualicé el producto ID ${id} a ${qty} unidades.`;
     }
-
   }
 }
