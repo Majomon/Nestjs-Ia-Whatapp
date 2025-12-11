@@ -37,16 +37,6 @@ const tools: Tool[] = [
           required: ['id', 'qty'],
         },
       },
-      {
-        name: 'updateCartItem',
-        description:
-          'Actualiza la cantidad de un producto en el carrito. Si qty es 0, lo elimina.',
-        parameters: {
-          type: Type.OBJECT,
-          properties: { id: { type: Type.NUMBER }, qty: { type: Type.NUMBER } },
-          required: ['id', 'qty'],
-        },
-      },
     ],
   },
 ];
@@ -117,12 +107,6 @@ Precio por 200 unidades: $X
 
 - Al final, cerrá con mensaje instructivo:
 “Podés agregar este producto al carrito indicando ID y cantidad. También podés ver otra categoría o ver otro producto por ID 😊”
-
-────────────────────────────────
-FORMATO AL EDITAR O AGREGAR AL CARRITO
-────────────────────────────────
-- Confirma siempre la acción al usuario de forma clara.
-- Muestra siempre el resumen actual del carrito.
         `,
         tools,
       },
@@ -211,71 +195,21 @@ FORMATO AL EDITAR O AGREGAR AL CARRITO
       }
 
       // -------------------------------
-      // Pasar el carrito completo a Gemini
+      // Pasar el carrito completo a Gemini para que genere el mensaje
       // -------------------------------
       const follow = await chat.sendMessage({
         message: [
           {
             functionResponse: {
               name: funcCall.name,
-              response: cart,
+              response: cart, // TODO: toda la info del carrito con productos
             },
           },
         ],
       });
 
-      return this.extractText(follow.candidates?.[0]?.content?.parts ?? []);
-    }
-
-    // -------------------------------
-    // UPDATE CART ITEM (Nuevo)
-    // -------------------------------
-    if (funcCall?.name === 'updateCartItem') {
-      const id = Number(funcCall.args?.id);
-      const qty = Number(funcCall.args?.qty);
-
-      // 1. Obtener carrito del usuario
-      let cart;
-      try {
-        const { data: existing } = await axios.get(
-          `${this.backendUrl}/carts/user/${userId}`,
-        );
-
-        // 2. Modificar items
-        let items = existing.items.map((i: any) => {
-          if (i.product.id === id) {
-            return { product_id: id, qty: qty }; // qty 0 se filtrará abajo si queremos, pero mejor filtrar explícitamente
-          }
-          return { product_id: i.product.id, qty: i.qty };
-        });
-
-        // Si qty es 0, filtrar
-        items = items.filter((i: any) => i.qty > 0);
-
-        // 3. Actualizar en backend
-        const { data: updated } = await axios.patch(
-          `${this.backendUrl}/carts/${existing.id}`,
-          { items },
-        );
-        cart = updated;
-      } catch (e) {
-        return 'No tenés un carrito activo para modificar.';
-      }
-
-      // 4. Responder a Gemini
-      const follow = await chat.sendMessage({
-        message: [
-          {
-            functionResponse: {
-              name: funcCall.name,
-              response: cart,
-            },
-          },
-        ],
-      });
-
+      // Extraemos el texto generado por Gemini
       return this.extractText(follow.candidates?.[0]?.content?.parts ?? []);
     }
   }
 }
-
