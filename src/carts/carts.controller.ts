@@ -1,5 +1,4 @@
-// src/carts/carts.controller.ts
-import { Controller, Post, Patch, Get, Body, Param } from '@nestjs/common';
+import { Body, Controller, Get, Param, Patch, Post } from '@nestjs/common';
 import { CartsService } from './carts.service';
 
 @Controller('carts')
@@ -11,7 +10,7 @@ export class CartsController {
     return this.service.getCartByUser(userId);
   }
 
-  @Post('add-item') // coincide con tu request desde Gemini
+  @Post('add-item')
   addItem(@Body() body: { userId: string; productId: number; qty: number }) {
     return this.service.addOrUpdateItem(body.userId, body.productId, body.qty);
   }
@@ -21,7 +20,6 @@ export class CartsController {
     @Param('id') cartId: number,
     @Body() body: { productId: number; qty: number },
   ) {
-    // Primero buscás el carrito por id
     return this.service.updateCartItemByCartId(cartId, body.productId, body.qty);
   }
 
