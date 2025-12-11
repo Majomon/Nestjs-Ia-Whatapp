@@ -32,7 +32,7 @@ export class ProductsService {
   // En ProductsService
   // GET /products?q=&limit=&offset=
 
-  async findAll(q?: string, page = 1, limit = 50) {
+  async findAll(q?: string, page = 1, limit = 100) {
     const skip = (page - 1) * limit;
     const where = q
       ? [{ tipoPrenda: ILike(`%${q}%`) }, { descripcion: ILike(`%${q}%`) }]

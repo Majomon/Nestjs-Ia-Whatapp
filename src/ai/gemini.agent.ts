@@ -12,13 +12,12 @@ const tools: Tool[] = [
     functionDeclarations: [
       {
         name: 'getProducts',
-        description: 'Obtiene productos desde el backend.',
+        description:
+          'Busca productos reales en el backend usando un término interpretado del usuario.',
         parameters: {
           type: Type.OBJECT,
           properties: {
             query: { type: Type.STRING },
-            limit: { type: Type.INTEGER },
-            offset: { type: Type.INTEGER },
           },
         },
       },
@@ -45,9 +44,7 @@ export class GeminiAgent {
 
   /** EXTRAER CALL A FUNCION */
   private extractFunctionCall(content?: Content) {
-    if (!content || !content.parts) return null;
-
-    // Buscar part.functionCall
+    if (!content?.parts) return null;
     return content.parts.find((p) => p.functionCall)?.functionCall ?? null;
   }
 
@@ -57,11 +54,31 @@ export class GeminiAgent {
       config: {
         systemInstruction: `
 Eres un agente de ventas experto en moda.
-- Interpretas lenguaje natural.
-- Cuando detectes que el usuario busca productos, llamá a getProducts.
-- Presentás resultados claros y resumidos.
-- Nunca inventes datos; usá la función getProducts.
-        `,
+
+Tu objetivo es mostrar al usuario SOLO la información clave de cada producto.
+
+REGLAS DE FORMATO:
+- Para cada producto solo podés mostrar:
+  • id
+  • tipo de prenda
+  • color
+  • categoría
+  • precio (mostrá el menor de los precios disponibles)
+
+- NO mostrar:
+  ✘ talles
+  ✘ unidades disponibles
+  ✘ cantidades
+  ✘ descripciones largas
+  ✘ precios múltiples (solo uno)
+
+FLUJO DEL AGENTE:
+1. Interpretas lo que el usuario quiere aunque escriba con errores.
+2. Convertís su intención en un término de búsqueda.
+3. Llamás a getProducts(query) cuando quieras buscar productos reales.
+4. Procesás los productos devueltos y SOLO mostrás la info permitida.
+5. Nunca inventes datos. Siempre usá la función getProducts para obtener productos reales.
+`,
         tools,
       },
       history: history.map((h) => ({
@@ -70,19 +87,21 @@ Eres un agente de ventas experto en moda.
       })),
     });
 
-    // Primer mensaje del usuario
+    // Primer mensaje
     const response = await chat.sendMessage({ message: userMessage });
-
     const candidate = response.candidates?.[0];
     const content = candidate?.content;
-    const parts = content?.parts ?? [];
 
-    // Si el modelo pidió usar la tool
+    // → SI el modelo quiere usar la función
     const funcCall = this.extractFunctionCall(content);
 
-    if (funcCall) {
-      if (funcCall.name === 'getProducts') {
-        const { data } = await axios.get(`${this.backendUrl}/products`);
+    if (funcCall && funcCall.name === 'getProducts') {
+      const query = (funcCall.args?.query as string) ?? '';
+
+      try {
+        const { data } = await axios.get(
+          `${this.backendUrl}/products?q=${encodeURIComponent(query)}`,
+        );
 
         // Respuesta a la función
         const follow = await chat.sendMessage({
@@ -100,10 +119,12 @@ Eres un agente de ventas experto en moda.
         const followParts = followContent?.parts ?? [];
 
         return this.extractText(followParts);
+      } catch (e) {
+        return 'Hubo un problema al consultar los productos. Intentá de nuevo.';
       }
     }
 
-    // Respuesta normal
-    return this.extractText(parts);
+    // → Respuesta normal
+    return this.extractText(content?.parts ?? []);
   }
 }
