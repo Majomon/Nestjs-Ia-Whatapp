@@ -32,6 +32,25 @@ const tools: Tool[] = [
           required: ['id'],
         },
       },
+      {
+        name: 'addToCart',
+        description: 'Agrega un producto al carrito por ID y cantidad',
+        parameters: {
+          type: Type.OBJECT,
+          properties: {
+            id: { type: Type.NUMBER },
+            qty: { type: Type.NUMBER },
+          },
+          required: ['id', 'qty'],
+        },
+      },
+      {
+        name: 'viewCart',
+        description: 'Muestra los productos actualmente en el carrito',
+        parameters: {
+          type: Type.OBJECT,
+        },
+      },
     ],
   },
 ];
@@ -39,6 +58,15 @@ const tools: Tool[] = [
 export class GeminiAgent {
   private ai: GoogleGenAI;
   private backendUrl = process.env.BACKEND_URL!;
+
+  // Mantener carrito en memoria (simula persistencia)
+  private cartId?: number;
+  private cart: {
+    product_id: number;
+    tipoPrenda: string;
+    qty: number;
+    price: number;
+  }[] = [];
 
   constructor(apiKey: string) {
     this.ai = new GoogleGenAI({ apiKey });
@@ -182,6 +210,60 @@ TU MISIÓN
       } catch (e) {
         return `No encontré el producto con ID ${id}. Verificá el número.`;
       }
+    }
+
+    // --- Agregar al carrito ---
+    if (funcCall?.name === 'addToCart') {
+      const id = Number(funcCall.args?.id);
+      const qty = Number(funcCall.args?.qty);
+
+      // Obtenemos producto por ID
+      const { data: product } = await axios.get(
+        `${this.backendUrl}/products/${id}`,
+      );
+      if (!product) return `No encontré el producto con ID ${id}.`;
+
+      // Actualizar carrito en memoria
+      const existing = this.cart.find((c) => c.product_id === id);
+      if (existing) existing.qty += qty;
+      else
+        this.cart.push({
+          product_id: id,
+          tipoPrenda: product.tipoPrenda,
+          qty,
+          price: product.precio50U,
+        });
+
+      // Crear o actualizar en backend
+      if (!this.cartId) {
+        const res = await axios.post(`${this.backendUrl}/carts`, {
+          items: this.cart.map((c) => ({
+            product_id: c.product_id,
+            qty: c.qty,
+          })),
+        });
+        this.cartId = res.data.id;
+      } else {
+        await axios.patch(`${this.backendUrl}/carts/${this.cartId}`, {
+          items: this.cart.map((c) => ({
+            product_id: c.product_id,
+            qty: c.qty,
+          })),
+        });
+      }
+
+      const total = this.cart.reduce((sum, c) => sum + c.price * c.qty, 0);
+      return `✅ Agregaste ${qty} x ${product.tipoPrenda} al carrito.\nTotal actual: $${total}\nPodés ver tu carrito o agregar otro producto 😊`;
+    }
+
+    // --- Ver carrito ---
+    if (funcCall?.name === 'viewCart') {
+      if (this.cart.length === 0) return 'Tu carrito está vacío 🛒';
+      const lines = this.cart.map(
+        (c) => `${c.qty} x ${c.tipoPrenda} — $${c.price * c.qty}`,
+      );
+      const total = this.cart.reduce((sum, c) => sum + c.price * c.qty, 0);
+      return `🛒 Tu carrito:\n${lines.join('\n')}\nTotal: $${total}`;
     }
 
     // → Respuesta normal
