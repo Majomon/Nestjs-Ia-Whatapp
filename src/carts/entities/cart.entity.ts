@@ -6,6 +6,7 @@ import {
   Column,
   CreateDateColumn,
   UpdateDateColumn,
+  Index,
 } from 'typeorm';
 import { CartItem } from './cart-item.entity';
 
@@ -14,10 +15,11 @@ export class Cart {
   @PrimaryGeneratedColumn()
   id: number;
 
-  @Column({ nullable: true })
+  @Index({ unique: true })
+  @Column()
   userId: string;
 
-  @OneToMany(() => CartItem, (item) => item.cart, { cascade: true })
+  @OneToMany(() => CartItem, (item) => item.cart, { cascade: true, eager: true })
   items: CartItem[];
 
   @CreateDateColumn()
