@@ -260,6 +260,7 @@ Precio por 200 unidades: $X
         let total = 0;
 
         for (const item of cart.items) {
+          // Traer el producto desde backend si no existe
           let p = item.product;
           if (!p) {
             const { data } = await axios.get(
@@ -282,7 +283,8 @@ Precio por 200 unidades: $X
         }
 
         return `🛒 Tu carrito:\n${lines.join('\n')}\nTotal: $${total}`;
-      } catch {
+      } catch (err) {
+        console.log('Error viewCart:', err);
         return 'Tu carrito está vacío 🛒';
       }
     }
