@@ -17,8 +17,8 @@ export class AiService {
 
     history.push({ role: 'user', text: message });
 
-    // La IA decide qué hacer (saludo, búsqueda, paginación)
-    const reply = await this.agent.sendMessage(history, message);
+    // Pasamos los 3 argumentos al agente
+    const reply = await this.agent.sendMessage(userId, history, message);
 
     history.push({ role: 'model', text: reply });
     return reply;

@@ -1,8 +1,9 @@
-// src/carts/cart.entity.ts
+// src/carts/entities/cart.entity.ts
 import {
   Entity,
   PrimaryGeneratedColumn,
   OneToMany,
+  Column,
   CreateDateColumn,
   UpdateDateColumn,
 } from 'typeorm';
@@ -12,6 +13,9 @@ import { CartItem } from './cart-item.entity';
 export class Cart {
   @PrimaryGeneratedColumn()
   id: number;
+
+  @Column({ nullable: true })
+  userId: string;
 
   @OneToMany(() => CartItem, (item) => item.cart, { cascade: true })
   items: CartItem[];
