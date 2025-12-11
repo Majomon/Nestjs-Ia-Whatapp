@@ -235,7 +235,6 @@ FORMATO CUANDO QUIERE MODIFICAR EL CARRITO
       return `🛒 ¡Acá tenés tu carrito actual!\n${lines.join('\n')}\nTotal: $${total}`;
     }
 
-
     // -------------------------------
     // UPDATE CART ITEM
     // -------------------------------
