@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { GeminiAgent, ChatMessage } from './gemini.agent';
+import { ChatMessage, GeminiAgent } from './gemini.agent';
 
 @Injectable()
 export class AiService {
