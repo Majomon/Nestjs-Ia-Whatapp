@@ -21,6 +21,17 @@ const tools: Tool[] = [
           },
         },
       },
+      {
+        name: 'getProductById',
+        description: 'Obtiene un solo producto por su ID.',
+        parameters: {
+          type: Type.OBJECT,
+          properties: {
+            id: { type: Type.STRING }, // o NUMBER si querés
+          },
+          required: ['id'],
+        },
+      },
     ],
   },
 ];
@@ -66,7 +77,7 @@ Estilo de respuesta:
 - El total de la respuesta debe caber dentro del límite de WhatsApp (menos de 1600 caracteres).
 
 Formato para cada producto:
-🛍️ **Nombre o tipo de prenda**
+ID: X - 🛍️ **Nombre o tipo de prenda**
 Color: X — Talles: X  
 Precio: $X
 
@@ -125,6 +136,35 @@ Tu misión:
         return this.extractText(followParts);
       } catch (e) {
         return 'Hubo un problema al consultar los productos. Intentá de nuevo.';
+      }
+    }
+
+    // ------------------------------
+    // 2) Obtener producto por ID
+    // ------------------------------
+    if (funcCall && funcCall.name === 'getProductById') {
+      const id = Number(funcCall.args?.id);
+
+      try {
+        const { data } = await axios.get(`${this.backendUrl}/products/${id}`);
+
+        const follow = await chat.sendMessage({
+          message: [
+            {
+              functionResponse: {
+                name: funcCall.name,
+                response: data,
+              },
+            },
+          ],
+        });
+
+        const followContent = follow.candidates?.[0]?.content;
+        const followParts = followContent?.parts ?? [];
+
+        return this.extractText(followParts);
+      } catch (e) {
+        return `No encontré el producto con ID ${id}. Verificá el número.`;
       }
     }
 
