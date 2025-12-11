@@ -59,15 +59,6 @@ export class GeminiAgent {
   private ai: GoogleGenAI;
   private backendUrl = process.env.BACKEND_URL!;
 
-  // Carrito en memoria
-  private cartId?: number;
-  private cart: {
-    product_id: number;
-    tipoPrenda: string;
-    qty: number;
-    price: number;
-  }[] = [];
-
   constructor(apiKey: string) {
     this.ai = new GoogleGenAI({ apiKey });
   }
@@ -85,7 +76,11 @@ export class GeminiAgent {
     return content.parts.find((p) => p.functionCall)?.functionCall ?? null;
   }
 
-  async sendMessage(history: ChatMessage[], userMessage: string) {
+  async sendMessage(
+    userId: string,
+    history: ChatMessage[],
+    userMessage: string,
+  ) {
     const chat = this.ai.chats.create({
       model: 'gemini-2.5-flash',
       config: {
@@ -142,53 +137,45 @@ Precio por 200 unidades: $X
     const funcCall = this.extractFunctionCall(content);
 
     // -------------------------------
-    // GET PRODUCTS (varios)
+    // GET PRODUCTS
     // -------------------------------
     if (funcCall?.name === 'getProducts') {
       const query = (funcCall.args?.query as string) ?? '';
-
       try {
         const { data } = await axios.get(
           `${this.backendUrl}/products?q=${encodeURIComponent(query)}&limit=5`,
         );
-
         const follow = await chat.sendMessage({
           message: [
             { functionResponse: { name: funcCall.name, response: data } },
           ],
         });
-
-        const followContent = follow.candidates?.[0]?.content;
-        const followParts = followContent?.parts ?? [];
-
-        const productsText = this.extractText(followParts);
-        return `${productsText}\n\nSi querés, podés pedirme el detalle de un producto indicando su ID o ver otra categoría 😊`;
-      } catch (e) {
+        return (
+          this.extractText(follow.candidates?.[0]?.content?.parts ?? []) +
+          `\n\nSi querés, podés pedirme el detalle de un producto indicando su ID o ver otra categoría 😊`
+        );
+      } catch {
         return 'Hubo un problema al consultar los productos. Intentá de nuevo.';
       }
     }
 
     // -------------------------------
-    // GET PRODUCT BY ID (detalle)
+    // GET PRODUCT BY ID
     // -------------------------------
     if (funcCall?.name === 'getProductById') {
       const id = Number(funcCall.args?.id);
-
       try {
         const { data } = await axios.get(`${this.backendUrl}/products/${id}`);
-
         const follow = await chat.sendMessage({
           message: [
             { functionResponse: { name: funcCall.name, response: data } },
           ],
         });
-
-        const followContent = follow.candidates?.[0]?.content;
-        const followParts = followContent?.parts ?? [];
-
-        const productText = this.extractText(followParts);
-        return `${productText}\n\nPodés agregar este producto al carrito indicando ID y cantidad. También podés ver otra categoría o ver otro producto por ID 😊`;
-      } catch (e) {
+        return (
+          this.extractText(follow.candidates?.[0]?.content?.parts ?? []) +
+          `\n\nPodés agregar este producto al carrito indicando ID y cantidad. También podés ver otra categoría o ver otro producto por ID 😊`
+        );
+      } catch {
         return `No encontré el producto con ID ${id}. Verificá el número.`;
       }
     }
@@ -200,40 +187,55 @@ Precio por 200 unidades: $X
       const id = Number(funcCall.args?.id);
       const qty = Number(funcCall.args?.qty);
 
+      // Obtener producto
       const { data: product } = await axios.get(
         `${this.backendUrl}/products/${id}`,
       );
       if (!product) return `No encontré el producto con ID ${id}.`;
 
-      const existing = this.cart.find((c) => c.product_id === id);
-      if (existing) existing.qty += qty;
-      else
-        this.cart.push({
-          product_id: id,
-          tipoPrenda: product.tipoPrenda,
-          qty,
-          price: product.precio50U,
-        });
-
-      // Crear o actualizar carrito en backend
-      if (!this.cartId) {
-        const res = await axios.post(`${this.backendUrl}/carts`, {
-          items: this.cart.map((c) => ({
-            product_id: c.product_id,
-            qty: c.qty,
-          })),
-        });
-        this.cartId = res.data.id;
-      } else {
-        await axios.patch(`${this.backendUrl}/carts/${this.cartId}`, {
-          items: this.cart.map((c) => ({
-            product_id: c.product_id,
-            qty: c.qty,
-          })),
-        });
+      // Obtener carrito del usuario
+      let cart;
+      try {
+        const res = await axios.get(`${this.backendUrl}/carts/user/${userId}`);
+        cart = res.data;
+      } catch {
+        cart = null;
       }
 
-      const total = this.cart.reduce((sum, c) => sum + c.price * c.qty, 0);
+      // Preparar items
+      let items: { product_id: number; qty: number }[] = [];
+      if (cart && cart.items?.length) {
+        items = cart.items.map((i: any) => ({
+          product_id: i.product.id,
+          qty: i.product.id === id ? i.qty + qty : i.qty,
+        }));
+
+        if (!items.find((i) => i.product_id === id))
+          items.push({ product_id: id, qty });
+
+        // Actualizar carrito
+        await axios.patch(`${this.backendUrl}/carts/${cart.id}`, { items });
+      } else {
+        items = [{ product_id: id, qty }];
+        const res = await axios.post(`${this.backendUrl}/carts`, {
+          userId,
+          items,
+        });
+        cart = res.data;
+      }
+
+      // Calcular total usando el producto recién consultado
+      const total = items.reduce((sum, i) => {
+        if (i.product_id === product.id) return sum + product.precio50U * i.qty;
+
+        // Para los demás items, si ya tienes el precio en cart.items, úsalo
+        const itemInCart = cart.items.find(
+          (ci: any) => ci.product.id === i.product_id,
+        );
+        const price = itemInCart ? itemInCart.product.precio50U : 0;
+        return sum + price * i.qty;
+      }, 0);
+
       return `✅ Agregaste ${qty} x ${product.tipoPrenda} al carrito.\nTotal actual: $${total}\nPodés ver tu carrito o agregar otro producto 😊`;
     }
 
@@ -241,12 +243,24 @@ Precio por 200 unidades: $X
     // VIEW CART
     // -------------------------------
     if (funcCall?.name === 'viewCart') {
-      if (this.cart.length === 0) return 'Tu carrito está vacío 🛒';
-      const lines = this.cart.map(
-        (c) => `${c.qty} x ${c.tipoPrenda} — $${c.price * c.qty}`,
-      );
-      const total = this.cart.reduce((sum, c) => sum + c.price * c.qty, 0);
-      return `🛒 Tu carrito:\n${lines.join('\n')}\nTotal: $${total}`;
+      try {
+        const { data: cart } = await axios.get(
+          `${this.backendUrl}/carts/user/${userId}`,
+        );
+        if (!cart || !cart.items?.length) return 'Tu carrito está vacío 🛒';
+
+        const lines = cart.items.map(
+          (i: any) =>
+            `${i.qty} x ${i.product.tipoPrenda} — $${i.qty * i.product.precio50U}`,
+        );
+        const total = cart.items.reduce(
+          (sum: number, i: any) => sum + i.qty * i.product.precio50U,
+          0,
+        );
+        return `🛒 Tu carrito:\n${lines.join('\n')}\nTotal: $${total}`;
+      } catch {
+        return 'Tu carrito está vacío 🛒';
+      }
     }
 
     // -------------------------------
