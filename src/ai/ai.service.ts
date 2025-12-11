@@ -1,4 +1,3 @@
-// src/ai/ai.service.ts
 import { Injectable } from '@nestjs/common';
 import { GeminiAgent, ChatMessage } from './gemini.agent';
 
@@ -17,7 +16,6 @@ export class AiService {
 
     history.push({ role: 'user', text: message });
 
-    // Pasamos los 3 argumentos al agente
     const reply = await this.agent.sendMessage(userId, history, message);
 
     history.push({ role: 'model', text: reply });

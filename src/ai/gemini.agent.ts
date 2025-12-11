@@ -209,7 +209,6 @@ Precio por 200 unidades: $X
           product_id: i.product.id,
           qty: i.product.id === id ? i.qty + qty : i.qty,
         }));
-
         if (!items.find((i) => i.product_id === id))
           items.push({ product_id: id, qty });
 
@@ -224,19 +223,17 @@ Precio por 200 unidades: $X
         cart = res.data;
       }
 
-      // Calcular total usando el producto recién consultado
+      // Calcular total
       const total = items.reduce((sum, i) => {
-        if (i.product_id === product.id) return sum + product.precio50U * i.qty;
-
-        // Para los demás items, si ya tienes el precio en cart.items, úsalo
+        if (i.product_id === product.id) return sum + product.price * i.qty;
         const itemInCart = cart.items.find(
           (ci: any) => ci.product.id === i.product_id,
         );
-        const price = itemInCart ? itemInCart.product.precio50U : 0;
+        const price = itemInCart ? itemInCart.product.price : 0;
         return sum + price * i.qty;
       }, 0);
 
-      return `✅ Agregaste ${qty} x ${product.tipoPrenda} al carrito.\nTotal actual: $${total}\nPodés ver tu carrito o agregar otro producto 😊`;
+      return `✅ Agregaste ${qty} x ${product.name} al carrito.\nTotal actual: $${total}\nPodés ver tu carrito o agregar otro producto 😊`;
     }
 
     // -------------------------------
@@ -251,10 +248,10 @@ Precio por 200 unidades: $X
 
         const lines = cart.items.map(
           (i: any) =>
-            `${i.qty} x ${i.product.tipoPrenda} — $${i.qty * i.product.precio50U}`,
+            `${i.qty} x ${i.product.name} — $${i.qty * i.product.price}`,
         );
         const total = cart.items.reduce(
-          (sum: number, i: any) => sum + i.qty * i.product.precio50U,
+          (sum: number, i: any) => sum + i.qty * i.product.price,
           0,
         );
         return `🛒 Tu carrito:\n${lines.join('\n')}\nTotal: $${total}`;
