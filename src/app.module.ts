@@ -31,4 +31,4 @@ import { WhatsappModule } from './whatapp/whatapp.module';
     AiModule,
   ],
 })
-export class AppModule {}
+export class AppModule { }

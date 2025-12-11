@@ -9,4 +9,4 @@ import { WhatsappService } from './whatapp.service';
   controllers: [WhatsappController],
   providers: [WhatsappService],
 })
-export class WhatsappModule {}
+export class WhatsappModule { }
