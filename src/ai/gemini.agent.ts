@@ -37,6 +37,26 @@ const tools: Tool[] = [
           required: ['id', 'qty'],
         },
       },
+      {
+        name: 'viewCart',
+        description: 'Muestra los productos actuales en el carrito del usuario',
+        parameters: {
+          type: Type.OBJECT,
+          properties: {},
+        },
+      },
+      {
+        name: 'updateCartItem',
+        description: 'Actualiza la cantidad de un producto en el carrito',
+        parameters: {
+          type: Type.OBJECT,
+          properties: {
+            id: { type: Type.NUMBER },
+            qty: { type: Type.NUMBER }
+          },
+          required: ['id', 'qty'],
+        },
+      }
     ],
   },
 ];
@@ -72,10 +92,10 @@ export class GeminiAgent {
       config: {
         systemInstruction: `
 Eres un agente de ventas experto en moda, cálido, amable, cercano y con tacto comercial.
-Tu tono debe ser amistoso, profesional y empático. Siempre buscás ayudar al cliente como si estuvieras en un local real.
+Tu tono debe ser amistoso, profesional y empático. Siempre ayudás al cliente como si estuviera en un local real.
 
 REGLA GENERAL:
-Detectás si el usuario está buscando productos en general (“faldas”, “camisas”, “quiero ver blusas”) o si quiere ver un producto específico por su ID (“mostrame la 13”, “quiero la del ID 10”).
+Detectás si el usuario está buscando productos en general (“faldas”, “camisas”, “quiero ver blusas”), un producto específico por ID (“mostrame la 13”, “quiero la del ID 10”), o si quiere interactuar con su carrito.
 
 ────────────────────────────────
 FORMATO CUANDO SON VARIOS PRODUCTOS (listado)
@@ -107,7 +127,27 @@ Precio por 200 unidades: $X
 
 - Al final, cerrá con mensaje instructivo:
 “Podés agregar este producto al carrito indicando ID y cantidad. También podés ver otra categoría o ver otro producto por ID 😊”
-        `,
+
+────────────────────────────────
+FORMATO CUANDO QUIERE VER EL CARRITO
+────────────────────────────────
+- Siempre saludá con una frase cálida: “¡Acá tenés tu carrito actual! 🛒”
+- Listá cada producto con su cantidad y total parcial:
+Cantidad x Tipo de prenda — $PrecioTotal (ID: X)
+- Al final, mostrale el total y un mensaje instructivo:
+“Podés actualizar la cantidad de un producto diciendo, por ejemplo: 'Quiero 100 unidades del producto 14', o eliminarlo poniendo 0. También podés seguir agregando productos 😊”
+
+────────────────────────────────
+FORMATO CUANDO QUIERE MODIFICAR EL CARRITO
+────────────────────────────────
+- Si el usuario quiere actualizar la cantidad de un producto:
+✅ Mostrá: “Actualicé el producto ID X a Y unidades.”
+- Si el usuario quiere eliminar un producto (cantidad 0):
+🗑️ Mostrá: “Eliminé el producto ID X de tu carrito.”
+- Siempre terminá con un mensaje cálido que invite a seguir comprando o ver el carrito:
+“Si querés, podés seguir buscando productos o ver nuevamente tu carrito 😊”
+`
+        ,
         tools,
       },
       history: history.map((h) => ({
@@ -159,7 +199,6 @@ Precio por 200 unidades: $X
     // -------------------------------
     // ADD TO CART
     // -------------------------------
-
 
     if (funcCall?.name === 'addToCart') {
       const id = Number(funcCall.args?.id);
@@ -218,5 +257,56 @@ Precio por 200 unidades: $X
       const result = this.extractText(follow.candidates?.[0]?.content?.parts ?? []);
       return result || 'Perdón, no entendí tu mensaje 😅';
     }
+
+
+    // -------------------------------
+    // VIEW CART
+    // -------------------------------
+    if (funcCall?.name === 'viewCart') {
+      const { data: cart } = await axios.get(`${this.backendUrl}/carts/user/${userId}`);
+
+      if (!cart || !cart.items.length) return 'Tu carrito está vacío 🛒';
+
+      const lines = cart.items.map((item: any) => {
+        const p = item.product;
+        const pricePerUnit =
+          item.qty <= 50 ? p.precio50U :
+            item.qty <= 100 ? p.precio100U :
+              p.precio200U;
+        return `${item.qty} x ${p.tipoPrenda} — $${pricePerUnit * item.qty} (ID: ${p.id})`;
+      });
+      const total = cart.items.reduce((sum: number, item: any) => {
+        const p = item.product;
+        const pricePerUnit =
+          item.qty <= 50 ? p.precio50U :
+            item.qty <= 100 ? p.precio100U :
+              p.precio200U;
+        return sum + pricePerUnit * item.qty;
+      }, 0);
+
+      return `🛒 Tu carrito actual:\n${lines.join('\n')}\nTotal: $${total}`;
+    }
+
+    // -------------------------------
+    // UPDATE CART ITEM
+    // -------------------------------
+    if (funcCall?.name === 'updateCartItem') {
+      const id = Number(funcCall.args?.id);
+      const qty = Number(funcCall.args?.qty);
+
+      const { data: cart } = await axios.get(`${this.backendUrl}/carts/user/${userId}`);
+      if (!cart) return 'No encontré tu carrito 🛒';
+
+      const items = cart.items
+        .map(i => i.product.id === id ? { ...i, qty } : i)
+        .filter(i => i.qty > 0);
+
+
+      await axios.patch(`${this.backendUrl}/carts/${cart.id}`, { items });
+
+      return `✅ Actualicé el producto ID ${id} a ${qty} unidades.`;
+    }
+
+
   }
 }
