@@ -171,10 +171,13 @@ Precio por 200 unidades: $X
         const { data: existing } = await axios.get(
           `${this.backendUrl}/carts/user/${userId}`,
         );
+        // Cuando actualices items
         const items = existing.items.map((i: any) => ({
+          product: i.product,
           product_id: i.product.id,
           qty: i.product.id === id ? i.qty + qty : i.qty,
         }));
+        // Si es un producto nuevo
         if (!items.find((i: any) => i.product_id === id))
           items.push({ product_id: id, qty });
 
@@ -203,10 +206,10 @@ Precio por 200 unidades: $X
               ? p.precio100U
               : p.precio200U;
         total += pricePerUnit * item.qty;
-        return `${item.qty} x ${p.tipoPrenda} — $${pricePerUnit * item.qty}`;
+        return `ID: ${item.product_id} — ${item.qty} x ${p.tipoPrenda} — $${pricePerUnit * item.qty}`;
       });
 
-      return `✅ Agregaste ${qty} x ${product.tipoPrenda} al carrito.\n\n🛒 Tu carrito:\n${lines.join('\n')}\nTotal: $${total}\nPodés agregar otro producto 😊`;
+      return `✅ Agregaste ${qty} x ${product.tipoPrenda} al carrito.\n\n🛒 Tu carrito:\n${lines.join('\n')}\nTotal: $${total}\nPodés agregar otro producto o modificar tu carrito😊`;
     }
 
     return this.extractText(content?.parts ?? []);
