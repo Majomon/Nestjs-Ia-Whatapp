@@ -29,17 +29,13 @@ export class ProductsService {
   // -----------------------
   // Buscar todos los productos
   // -----------------------
-  // En ProductsService
-  // GET /products?q=&limit=&offset=
 
   async findAll(q?: string, page = 1, limit = 100) {
-    const skip = (page - 1) * limit;
     const where = q
       ? [{ tipoPrenda: ILike(`%${q}%`) }, { descripcion: ILike(`%${q}%`) }]
       : {};
     const [data, total] = await this.productRepository.findAndCount({
       where,
-      skip,
       take: limit,
     });
     return { products: data, total };
