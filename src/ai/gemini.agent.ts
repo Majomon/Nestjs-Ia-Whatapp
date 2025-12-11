@@ -151,11 +151,7 @@ Precio por 200 unidades: $X
           ],
         });
 
-        const followText = this.extractText(
-          follow.candidates?.[0]?.content?.parts ?? [],
-        );
-
-        return followText;
+        return this.extractText(follow.candidates?.[0]?.content?.parts ?? []);
       } catch {
         return 'Hubo un problema al consultar los productos. Intentá de nuevo.';
       }
@@ -174,10 +170,7 @@ Precio por 200 unidades: $X
           ],
         });
 
-        const followText = this.extractText(
-          follow.candidates?.[0]?.content?.parts ?? [],
-        );
-        return followText;
+        return this.extractText(follow.candidates?.[0]?.content?.parts ?? []);
       } catch {
         return `No encontré el producto con ID ${id}. Verificá el número.`;
       }
@@ -208,21 +201,18 @@ Precio por 200 unidades: $X
       // Preparar items
       let items: { product_id: number; qty: number }[] = [];
       if (cart && cart.items?.length) {
-        // actualizamos cantidades si ya existía
         items = cart.items.map((i: any) => ({
-          product_id: i.product_id, // usar product_id directamente
+          product_id: i.product_id,
           qty: i.product_id === id ? i.qty + qty : i.qty,
         }));
-        // si no estaba, lo agregamos
         if (!items.find((i) => i.product_id === id))
           items.push({ product_id: id, qty });
 
-        // Actualizar carrito
         const updated = await axios.patch(
           `${this.backendUrl}/carts/${cart.id}`,
           { items },
         );
-        cart = updated.data; // usamos el carrito actualizado
+        cart = updated.data;
       } else {
         items = [{ product_id: id, qty }];
         const res = await axios.post(`${this.backendUrl}/carts`, {
@@ -232,10 +222,9 @@ Precio por 200 unidades: $X
         cart = res.data;
       }
 
-      // Calcular total usando los productos actuales
+      // Calcular total según precios reales
       let total = 0;
       for (const item of cart.items) {
-        // obtener producto completo por id
         let p = item.product;
         if (!p) {
           const { data } = await axios.get(
@@ -243,10 +232,18 @@ Precio por 200 unidades: $X
           );
           p = data;
         }
-        total += p.price * item.qty;
+
+        let pricePerUnit =
+          item.qty <= 50
+            ? p.precio50U
+            : item.qty <= 100
+              ? p.precio100U
+              : p.precio200U;
+
+        total += pricePerUnit * item.qty;
       }
 
-      return `✅ Agregaste ${qty} x ${product.name} al carrito.\nTotal actual: $${total}\nPodés ver tu carrito o agregar otro producto 😊`;
+      return `✅ Agregaste ${qty} x ${product.tipoPrenda} al carrito.\nTotal actual: $${total}\nPodés ver tu carrito o agregar otro producto 😊`;
     }
 
     // -------------------------------
@@ -259,14 +256,31 @@ Precio por 200 unidades: $X
         );
         if (!cart || !cart.items?.length) return 'Tu carrito está vacío 🛒';
 
-        const lines = cart.items.map(
-          (i: any) =>
-            `${i.qty} x ${i.product.name} — $${i.qty * i.product.price}`,
-        );
-        const total = cart.items.reduce(
-          (sum: number, i: any) => sum + i.qty * i.product.price,
-          0,
-        );
+        const lines: string[] = [];
+        let total = 0;
+
+        for (const item of cart.items) {
+          let p = item.product;
+          if (!p) {
+            const { data } = await axios.get(
+              `${this.backendUrl}/products/${item.product_id}`,
+            );
+            p = data;
+          }
+
+          let pricePerUnit =
+            item.qty <= 50
+              ? p.precio50U
+              : item.qty <= 100
+                ? p.precio100U
+                : p.precio200U;
+
+          lines.push(
+            `${item.qty} x ${p.tipoPrenda} — $${pricePerUnit * item.qty}`,
+          );
+          total += pricePerUnit * item.qty;
+        }
+
         return `🛒 Tu carrito:\n${lines.join('\n')}\nTotal: $${total}`;
       } catch {
         return 'Tu carrito está vacío 🛒';
